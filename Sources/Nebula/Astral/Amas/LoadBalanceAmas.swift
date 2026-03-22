@@ -39,7 +39,7 @@ public actor LoadBalanceAmas: Amas {
 
 extension LoadBalanceAmas: NMTServerDelegate {
 
-    public func handle(envelope: Envelope) async throws -> Envelope? {
+    public func handle(envelope: Matter) async throws -> Matter? {
         switch envelope.type {
         case .register:
             return try await handleRegister(envelope: envelope)
@@ -61,14 +61,14 @@ extension LoadBalanceAmas: NMTServerDelegate {
 
 extension LoadBalanceAmas {
 
-    private func handleRegister(envelope: Envelope) async throws -> Envelope {
+    private func handleRegister(envelope: Matter) async throws -> Matter {
         let body = try envelope.decodeBody(RegisterBody.self)
         let address = try SocketAddress.makeAddressResolvingHost(body.host, port: body.port)
         try await addStellar(namespace: body.namespace, endpoint: address)
         return try envelope.reply(body: RegisterReplyBody(status: "ok"))
     }
 
-    private func handleFind(envelope: Envelope) async throws -> Envelope {
+    private func handleFind(envelope: Matter) async throws -> Matter {
         let body = try envelope.decodeBody(FindBody.self)
         let address = try? await allocateStellar(for: body.namespace)
         let reply = FindReplyBody(
@@ -78,15 +78,15 @@ extension LoadBalanceAmas {
         return try envelope.reply(body: reply)
     }
 
-    private func handleCall(envelope: Envelope) async throws -> Envelope {
+    private func handleCall(envelope: Matter) async throws -> Matter {
         let body = try envelope.decodeBody(CallBody.self)
         let conn = try await nextConnection(for: body.namespace)
-        let forwardEnvelope = try Envelope.make(type: .call, body: body)
-        let reply = try await conn.client.request(envelope: forwardEnvelope)
-        return Envelope(type: .reply, messageID: envelope.messageID, body: reply.body)
+        let forwardMatter = try Matter.make(type: .call, body: body)
+        let reply = try await conn.client.request(envelope: forwardMatter)
+        return Matter(type: .reply, messageID: envelope.messageID, body: reply.body)
     }
 
-    private func handleUnregister(envelope: Envelope) async throws -> Envelope {
+    private func handleUnregister(envelope: Matter) async throws -> Matter {
         let body = try envelope.decodeBody(UnregisterBody.self)
         removeStellar(namespace: body.namespace, host: body.host, port: body.port)
         let next = try? await allocateStellar(for: body.namespace)
@@ -94,7 +94,7 @@ extension LoadBalanceAmas {
         return try envelope.reply(body: reply)
     }
 
-    private func makeCloneReply(envelope: Envelope) throws -> Envelope {
+    private func makeCloneReply(envelope: Matter) throws -> Matter {
         let reply = CloneReplyBody(
             identifier: identifier.uuidString,
             name: name,

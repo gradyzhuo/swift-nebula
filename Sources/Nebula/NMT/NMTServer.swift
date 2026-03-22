@@ -10,7 +10,7 @@ import NIO
 
 public protocol NMTServerDelegate: Sendable {
     /// Handle an incoming envelope. Return a reply envelope, or nil for no reply.
-    func handle(envelope: Envelope) async throws -> Envelope?
+    func handle(envelope: Matter) async throws -> Matter?
 }
 
 public final class NMTServer: Sendable {
@@ -69,8 +69,8 @@ extension NMTServer {
 // MARK: - NMTServerInboundHandler
 
 private final class NMTServerInboundHandler: ChannelInboundHandler, @unchecked Sendable {
-    typealias InboundIn  = Envelope
-    typealias OutboundOut = Envelope
+    typealias InboundIn  = Matter
+    typealias OutboundOut = Matter
 
     private let delegate: any NMTServerDelegate
 

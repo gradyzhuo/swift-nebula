@@ -43,7 +43,7 @@ open class ServiceStellar: @unchecked Sendable, Stellar {
 
 extension ServiceStellar: NMTServerDelegate {
 
-    public func handle(envelope: Envelope) async throws -> Envelope? {
+    public func handle(envelope: Matter) async throws -> Matter? {
         switch envelope.type {
         case .call:
             return try await handleCall(envelope: envelope)
@@ -59,7 +59,7 @@ extension ServiceStellar: NMTServerDelegate {
 
 extension ServiceStellar {
 
-    private func handleCall(envelope: Envelope) async throws -> Envelope {
+    private func handleCall(envelope: Matter) async throws -> Matter {
         let body = try envelope.decodeBody(CallBody.self)
 
         guard let service = availableServices[body.service] else {
@@ -73,7 +73,7 @@ extension ServiceStellar {
         return try envelope.reply(body: reply)
     }
 
-    private func makeCloneReply(envelope: Envelope) throws -> Envelope {
+    private func makeCloneReply(envelope: Matter) throws -> Matter {
         let reply = CloneReplyBody(
             identifier: identifier.uuidString,
             name: name,

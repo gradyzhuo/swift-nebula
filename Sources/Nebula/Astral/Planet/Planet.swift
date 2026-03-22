@@ -114,9 +114,9 @@ extension RoguePlanet {
     }
 
     private func perform(body: CallBody, via client: NMTClient) async throws -> Data? {
-        let envelope = try Envelope.make(type: .call, body: body)
-        let replyEnvelope = try await client.request(envelope: envelope)
-        let reply = try replyEnvelope.decodeBody(CallReplyBody.self)
+        let envelope = try Matter.make(type: .call, body: body)
+        let replyMatter = try await client.request(envelope: envelope)
+        let reply = try replyMatter.decodeBody(CallReplyBody.self)
         if let error = reply.error {
             throw NebulaError.fail(message: error)
         }

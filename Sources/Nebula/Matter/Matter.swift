@@ -1,5 +1,5 @@
 //
-//  Envelope.swift
+//  Matter.swift
 //
 //
 //  Created by Grady Zhuo on 2026/3/22.
@@ -8,9 +8,14 @@
 import Foundation
 
 // NBLA
-public let NebulaEnvelopeMagic: [UInt8] = [0x4E, 0x42, 0x4C, 0x41]
+public let NebulaMatterMagic: [UInt8] = [0x4E, 0x42, 0x4C, 0x41]
 
-/// Nebula wire protocol envelope.
+/// The unit transmitted between nodes in the Nebula protocol (NMT — Nebula Matter Transfer).
+///
+/// Structurally equivalent to what networking calls an "envelope": a fixed-length header
+/// carrying routing metadata, followed by a serialized body. Named `Matter` because in
+/// the Nebula metaphor, celestial bodies communicate by transferring matter — not just
+/// wrapping messages in envelopes.
 ///
 /// Header layout (27 bytes, fixed):
 /// ```
@@ -22,7 +27,7 @@ public let NebulaEnvelopeMagic: [UInt8] = [0x4E, 0x42, 0x4C, 0x41]
 /// Length   [23..26] = UInt32  (4 bytes, big-endian)
 /// Body     [27..]   = MessagePack encoded payload (variable)
 /// ```
-public struct Envelope: Sendable {
+public struct Matter: Sendable {
     public static let headerSize = 27
 
     public let version: UInt8
@@ -42,55 +47,46 @@ public struct Envelope: Sendable {
 
 // MARK: - Serialization
 
-extension Envelope {
+extension Matter {
 
     public func serialized() -> [UInt8] {
         var bytes = [UInt8]()
         bytes.reserveCapacity(Self.headerSize + body.count)
-        // Magic
-        bytes.append(contentsOf: NebulaEnvelopeMagic)
-        // Version
+        bytes.append(contentsOf: NebulaMatterMagic)
         bytes.append(version)
-        // Type
         bytes.append(type.rawValue)
-        // Flags
         bytes.append(flags)
-        // MsgID
         bytes.append(contentsOf: messageID.bytes)
-        // Length (big-endian)
         bytes.append(contentsOf: UInt32(body.count).bytes())
-        // Body
         bytes.append(contentsOf: body)
         return bytes
     }
 
     public init(bytes: [UInt8]) throws {
-        guard bytes.count >= Envelope.headerSize else {
-            throw NebulaError.invalidEnvelope("Too short: \(bytes.count) bytes")
+        guard bytes.count >= Matter.headerSize else {
+            throw NebulaError.invalidMatter("Too short: \(bytes.count) bytes")
         }
 
         let magic = Array(bytes[0..<4])
-        guard magic == NebulaEnvelopeMagic else {
-            throw NebulaError.invalidEnvelope("Invalid magic bytes")
+        guard magic == NebulaMatterMagic else {
+            throw NebulaError.invalidMatter("Invalid magic bytes")
         }
 
         let version = bytes[4]
 
         guard let type = MessageType(rawValue: bytes[5]) else {
-            throw NebulaError.invalidEnvelope("Unknown message type: \(bytes[5])")
+            throw NebulaError.invalidMatter("Unknown message type: \(bytes[5])")
         }
 
         let flags = bytes[6]
-
         let messageID = try UUID(bytes: Array(bytes[7..<23]))
-
         let length = Int(UInt32(bytes: Array(bytes[23..<27])))
 
-        guard bytes.count >= Envelope.headerSize + length else {
-            throw NebulaError.invalidEnvelope("Body length mismatch")
+        guard bytes.count >= Matter.headerSize + length else {
+            throw NebulaError.invalidMatter("Body length mismatch")
         }
 
-        let body = Data(bytes[Envelope.headerSize ..< Envelope.headerSize + length])
+        let body = Data(bytes[Matter.headerSize ..< Matter.headerSize + length])
 
         self.version = version
         self.type = type

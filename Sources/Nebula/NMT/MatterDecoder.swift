@@ -9,10 +9,10 @@ import Foundation
 import NIO
 
 final class MatterDecoder: ByteToMessageDecoder {
-    typealias InboundOut = Envelope
+    typealias InboundOut = Matter
 
     func decode(context: ChannelHandlerContext, buffer: inout ByteBuffer) throws -> DecodingState {
-        guard buffer.readableBytes >= Envelope.headerSize else {
+        guard buffer.readableBytes >= Matter.headerSize else {
             return .needMoreData
         }
 
@@ -24,7 +24,7 @@ final class MatterDecoder: ByteToMessageDecoder {
             return .needMoreData
         }
 
-        let totalLength = Envelope.headerSize + Int(bodyLength)
+        let totalLength = Matter.headerSize + Int(bodyLength)
         guard buffer.readableBytes >= totalLength else {
             return .needMoreData
         }
@@ -33,8 +33,8 @@ final class MatterDecoder: ByteToMessageDecoder {
             return .needMoreData
         }
 
-        let envelope = try Envelope(bytes: frameBytes)
-        context.fireChannelRead(wrapInboundOut(envelope))
+        let matter = try Matter(bytes: frameBytes)
+        context.fireChannelRead(wrapInboundOut(matter))
         return .continue
     }
 

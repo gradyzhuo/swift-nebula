@@ -14,7 +14,7 @@ let body = CallBody(
         .toEncoded()
         .map { EncodedArgument(key: $0.key, value: $0.value) }
 )
-let envelope = try Envelope.make(type: .call, body: body)
+let envelope = try Matter.make(type: .call, body: body)
 let reply = try await client.request(envelope: envelope)
 let replyBody = try reply.decodeBody(CallReplyBody.self)
 

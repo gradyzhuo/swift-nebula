@@ -27,7 +27,7 @@ public actor StandardGalaxy: Galaxy {
 
 extension StandardGalaxy: NMTServerDelegate {
 
-    public func handle(envelope: Envelope) async throws -> Envelope? {
+    public func handle(envelope: Matter) async throws -> Matter? {
         switch envelope.type {
         case .register:
             return try await handleRegister(envelope: envelope)
@@ -45,14 +45,14 @@ extension StandardGalaxy: NMTServerDelegate {
 
 extension StandardGalaxy {
 
-    private func handleRegister(envelope: Envelope) async throws -> Envelope {
+    private func handleRegister(envelope: Matter) async throws -> Matter {
         let body = try envelope.decodeBody(RegisterBody.self)
         let address = try SocketAddress.makeAddressResolvingHost(body.host, port: body.port)
         try await registry.register(namespace: body.namespace, address: address)
         return try envelope.reply(body: RegisterReplyBody(status: "ok"))
     }
 
-    private func handleFind(envelope: Envelope) async throws -> Envelope {
+    private func handleFind(envelope: Matter) async throws -> Matter {
         let body = try envelope.decodeBody(FindBody.self)
 
         // If there's a managed Amas for this namespace, return Stellar + Amas addresses
@@ -77,7 +77,7 @@ extension StandardGalaxy {
         return try envelope.reply(body: reply)
     }
 
-    private func makeCloneReply(envelope: Envelope) throws -> Envelope {
+    private func makeCloneReply(envelope: Matter) throws -> Matter {
         let reply = CloneReplyBody(
             identifier: identifier.uuidString,
             name: name,

@@ -54,12 +54,12 @@ extension NMTClient {
 extension NMTClient {
 
     /// Fire-and-forget: send an envelope without waiting for a reply.
-    public func fire(envelope: Envelope) {
+    public func fire(envelope: Matter) {
         channel.writeAndFlush(envelope, promise: nil)
     }
 
     /// Send an envelope and wait for a reply (matched by messageID).
-    public func request(envelope: Envelope) async throws -> Envelope {
+    public func request(envelope: Matter) async throws -> Matter {
         return try await withCheckedThrowingContinuation { continuation in
             pendingRequests.register(id: envelope.messageID, continuation: continuation)
             channel.writeAndFlush(envelope, promise: nil)
@@ -74,16 +74,16 @@ extension NMTClient {
 // MARK: - PendingRequests
 
 final class PendingRequests: @unchecked Sendable {
-    private var waiting: [UUID: CheckedContinuation<Envelope, Error>] = [:]
+    private var waiting: [UUID: CheckedContinuation<Matter, Error>] = [:]
     private let lock = NSLock()
 
-    func register(id: UUID, continuation: CheckedContinuation<Envelope, Error>) {
+    func register(id: UUID, continuation: CheckedContinuation<Matter, Error>) {
         lock.lock()
         waiting[id] = continuation
         lock.unlock()
     }
 
-    func fulfill(_ envelope: Envelope) {
+    func fulfill(_ envelope: Matter) {
         lock.lock()
         let continuation = waiting.removeValue(forKey: envelope.messageID)
         lock.unlock()
@@ -101,7 +101,7 @@ final class PendingRequests: @unchecked Sendable {
 // MARK: - NMTClientInboundHandler
 
 private final class NMTClientInboundHandler: ChannelInboundHandler, @unchecked Sendable {
-    typealias InboundIn = Envelope
+    typealias InboundIn = Matter
 
     private let pendingRequests: PendingRequests
 

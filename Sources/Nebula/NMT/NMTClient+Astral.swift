@@ -34,7 +34,7 @@ extension NMTClient {
             port: address.port ?? 0,
             identifier: identifier.uuidString
         )
-        let envelope = try Envelope.make(type: .register, body: body)
+        let envelope = try Matter.make(type: .register, body: body)
         let reply = try await request(envelope: envelope)
         let replyBody = try reply.decodeBody(RegisterReplyBody.self)
         guard replyBody.status == "ok" else {
@@ -45,7 +45,7 @@ extension NMTClient {
     /// Find the Stellar (and optional Amas) address for a namespace.
     public func find(namespace: String) async throws -> FindResult {
         let body = FindBody(namespace: namespace)
-        let envelope = try Envelope.make(type: .find, body: body)
+        let envelope = try Matter.make(type: .find, body: body)
         let reply = try await request(envelope: envelope)
         let replyBody = try reply.decodeBody(FindReplyBody.self)
 
@@ -65,7 +65,7 @@ extension NMTClient {
     /// Notify an Amas that a Stellar is dead. Returns the next available Stellar address.
     public func unregister(namespace: String, host: String, port: Int) async throws -> UnregisterResult {
         let body = UnregisterBody(namespace: namespace, host: host, port: port)
-        let envelope = try Envelope.make(type: .unregister, body: body)
+        let envelope = try Matter.make(type: .unregister, body: body)
         let reply = try await request(envelope: envelope)
         let replyBody = try reply.decodeBody(UnregisterReplyBody.self)
 
@@ -98,7 +98,7 @@ extension NMTClient {
 
     /// Fetch the remote astral's identity info.
     public func clone() async throws -> CloneReplyBody {
-        let envelope = try Envelope.make(type: .clone, body: CloneBody())
+        let envelope = try Matter.make(type: .clone, body: CloneBody())
         let reply = try await request(envelope: envelope)
         return try reply.decodeBody(CloneReplyBody.self)
     }

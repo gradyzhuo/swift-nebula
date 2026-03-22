@@ -9,9 +9,9 @@ import Foundation
 import NIO
 
 final class MatterEncoder: MessageToByteEncoder {
-    typealias OutboundIn = Envelope
+    typealias OutboundIn = Matter
 
-    func encode(data: Envelope, out: inout ByteBuffer) throws {
+    func encode(data: Matter, out: inout ByteBuffer) throws {
         out.writeBytes(data.serialized())
     }
 }
