@@ -8,6 +8,20 @@
 import Foundation
 import NIO
 
+// MARK: - Result Types
+
+public struct FindResult: Sendable {
+    /// Direct Stellar endpoint to connect to.
+    public let stellarAddress: SocketAddress?
+    /// Amas endpoint for failover (nil = no Amas, no failover available).
+    public let amasAddress: SocketAddress?
+}
+
+public struct UnregisterResult: Sendable {
+    /// Next available Stellar endpoint after removing the dead one (nil = pool exhausted).
+    public let nextAddress: SocketAddress?
+}
+
 // MARK: - Galaxy Operations
 
 extension NMTClient {
@@ -28,13 +42,39 @@ extension NMTClient {
         }
     }
 
-    /// Find the address of a service by namespace.
-    public func find(namespace: String) async throws -> String? {
+    /// Find the Stellar (and optional Amas) address for a namespace.
+    public func find(namespace: String) async throws -> FindResult {
         let body = FindBody(namespace: namespace)
         let envelope = try Envelope.make(type: .find, body: body)
         let reply = try await request(envelope: envelope)
         let replyBody = try reply.decodeBody(FindReplyBody.self)
-        return replyBody.address
+
+        let stellarAddress: SocketAddress? = try {
+            guard let host = replyBody.stellarHost, let port = replyBody.stellarPort else { return nil }
+            return try SocketAddress.makeAddressResolvingHost(host, port: port)
+        }()
+
+        let amasAddress: SocketAddress? = try {
+            guard let host = replyBody.amasHost, let port = replyBody.amasPort else { return nil }
+            return try SocketAddress.makeAddressResolvingHost(host, port: port)
+        }()
+
+        return FindResult(stellarAddress: stellarAddress, amasAddress: amasAddress)
+    }
+
+    /// Notify an Amas that a Stellar is dead. Returns the next available Stellar address.
+    public func unregister(namespace: String, host: String, port: Int) async throws -> UnregisterResult {
+        let body = UnregisterBody(namespace: namespace, host: host, port: port)
+        let envelope = try Envelope.make(type: .unregister, body: body)
+        let reply = try await request(envelope: envelope)
+        let replyBody = try reply.decodeBody(UnregisterReplyBody.self)
+
+        let nextAddress: SocketAddress? = try {
+            guard let host = replyBody.nextHost, let port = replyBody.nextPort else { return nil }
+            return try SocketAddress.makeAddressResolvingHost(host, port: port)
+        }()
+
+        return UnregisterResult(nextAddress: nextAddress)
     }
 }
 
@@ -63,5 +103,3 @@ extension NMTClient {
         return try reply.decodeBody(CloneReplyBody.self)
     }
 }
-
-

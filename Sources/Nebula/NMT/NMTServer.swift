@@ -40,15 +40,16 @@ extension NMTServer {
             .childChannelOption(.socketOption(.so_reuseaddr), value: 1)
             .childChannelInitializer { channel in
                 channel.pipeline.addHandlers([
-                    ByteToMessageHandler(EnvelopeDecoder()),
-                    MessageToByteHandler(EnvelopeEncoder()),
+                    ByteToMessageHandler(MatterDecoder()),
+                    MessageToByteHandler(MatterEncoder()),
                     handler,
                 ])
             }
             .bind(to: address)
             .get()
 
-        return NMTServer(address: address, channel: channel)
+        let boundAddress = channel.localAddress ?? address
+        return NMTServer(address: boundAddress, channel: channel)
     }
 }
 

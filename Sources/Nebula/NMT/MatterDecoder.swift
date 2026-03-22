@@ -1,5 +1,5 @@
 //
-//  EnvelopeDecoder.swift
+//  MatterDecoder.swift
 //
 //
 //  Created by Grady Zhuo on 2026/3/22.
@@ -8,7 +8,7 @@
 import Foundation
 import NIO
 
-final class EnvelopeDecoder: ByteToMessageDecoder {
+final class MatterDecoder: ByteToMessageDecoder {
     typealias InboundOut = Envelope
 
     func decode(context: ChannelHandlerContext, buffer: inout ByteBuffer) throws -> DecodingState {

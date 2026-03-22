@@ -2,8 +2,8 @@ import Foundation
 import Nebula
 import NIO
 
-let amasAddress = try SocketAddress(ipAddress: "::1", port: 8001)
-let planet = try await Nebula.planet(name: "client", connecting: amasAddress)
+let galaxyAddress = try SocketAddress(ipAddress: "::1", port: 9000)
+let planet = try await Nebula.planet(name: "client", connectingTo: galaxyAddress)
 
 let result = try await planet.call(
     namespace: "production.ml.embedding",

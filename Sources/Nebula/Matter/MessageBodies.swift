@@ -59,11 +59,44 @@ public struct FindBody: Codable, Sendable {
 }
 
 public struct FindReplyBody: Codable, Sendable {
-    /// nil means not found
-    public var address: String?
+    /// Direct Stellar endpoint (nil = not found)
+    public var stellarHost: String?
+    public var stellarPort: Int?
+    /// Amas endpoint for failover (nil = no Amas, direct only)
+    public var amasHost: String?
+    public var amasPort: Int?
 
-    public init(address: String?) {
-        self.address = address
+    public init(stellarHost: String? = nil, stellarPort: Int? = nil,
+                amasHost: String? = nil, amasPort: Int? = nil) {
+        self.stellarHost = stellarHost
+        self.stellarPort = stellarPort
+        self.amasHost = amasHost
+        self.amasPort = amasPort
+    }
+}
+
+// MARK: - Unregister
+
+public struct UnregisterBody: Codable, Sendable {
+    public var namespace: String
+    public var host: String
+    public var port: Int
+
+    public init(namespace: String, host: String, port: Int) {
+        self.namespace = namespace
+        self.host = host
+        self.port = port
+    }
+}
+
+public struct UnregisterReplyBody: Codable, Sendable {
+    /// Next available Stellar endpoint (nil = pool exhausted)
+    public var nextHost: String?
+    public var nextPort: Int?
+
+    public init(nextHost: String? = nil, nextPort: Int? = nil) {
+        self.nextHost = nextHost
+        self.nextPort = nextPort
     }
 }
 

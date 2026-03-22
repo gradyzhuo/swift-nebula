@@ -37,8 +37,8 @@ extension NMTClient {
             .channelOption(.socketOption(.so_reuseaddr), value: 1)
             .channelInitializer { channel in
                 channel.pipeline.addHandlers([
-                    ByteToMessageHandler(EnvelopeDecoder()),
-                    MessageToByteHandler(EnvelopeEncoder()),
+                    ByteToMessageHandler(MatterDecoder()),
+                    MessageToByteHandler(MatterEncoder()),
                     inboundHandler,
                 ])
             }

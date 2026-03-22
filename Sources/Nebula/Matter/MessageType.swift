@@ -15,4 +15,5 @@ public enum MessageType: UInt8, Sendable {
     case reply      = 0x05
     case activate   = 0x06
     case heartbeat  = 0x07
+    case unregister = 0x08
 }

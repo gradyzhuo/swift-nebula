@@ -38,10 +38,10 @@ extension Nebula {
 
     public static func planet(
         name: String,
-        connecting amasAddress: SocketAddress,
+        connectingTo galaxyAddress: SocketAddress,
         eventLoopGroup: MultiThreadedEventLoopGroup? = nil
     ) async throws -> RoguePlanet {
-        let client = try await NMTClient.connect(to: amasAddress, eventLoopGroup: eventLoopGroup)
-        return RoguePlanet(name: name, amasClient: client)
+        let client = try await NMTClient.connect(to: galaxyAddress, eventLoopGroup: eventLoopGroup)
+        return RoguePlanet(name: name, galaxyClient: client)
     }
 }
