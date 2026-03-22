@@ -14,28 +14,35 @@ Nebula is built around a different premise: internal services deserve a faster, 
 
 ## How It Works
 
-Nebula organizes services into a three-tier cosmic hierarchy:
+Nebula organizes services into a cosmic hierarchy:
 
 ```
 Galaxy   →  the service registry and coordinator
-  └── Amas   →  the routing layer, manages a group of Stellars
+  └── Amas   →  load balancer, manages a pool of Stellars per namespace
         └── Stellar   →  the actual service provider
 ```
 
 Services register under a namespaced address: `{galaxy}.{amas}.{stellar}`
 
-A client queries the Galaxy to discover the right Amas, then communicates directly through the Amas to the target Stellar — no repeated traversal on every call.
+A Planet (client) asks Galaxy to discover the Stellar address, then **connects directly** — no Amas hop on every call. Amas is managed by Galaxy automatically and only intervenes during failover.
 
 | Role | Type | Description |
 |------|------|-------------|
-| **Galaxy** | `StandardGalaxy` | Service registry. Tracks which Amas hosts which namespaces. |
-| **Amas** | `DirectAmas` | Router. Accepts calls from Planets and forwards them to the correct Stellar. |
+| **Galaxy** | `StandardGalaxy` | Service registry. Automatically creates and manages a `LoadBalanceAmas` per namespace when a Stellar registers. |
+| **Amas** | `LoadBalanceAmas` | Load balancer. Maintains a pool of Stellars, distributes via round-robin. System-managed by Galaxy — not created manually. |
 | **Stellar** | `ServiceStellar` | Service host. Runs one or more named `Service` objects, each with methods. |
-| **Planet** | `RoguePlanet` | Client. Connects to an Amas and makes RPC calls. |
+| **Planet** | `RoguePlanet` | Client actor. Connects directly to Stellars. Falls back through Amas when a Stellar becomes unreachable. |
+
+### Planet Connection Model
+
+```
+Normal:   Planet ──────────────────────────────► Stellar
+Failover: Planet → notify Amas (dead Stellar) → get next Stellar → reconnect directly
+```
 
 ## The Protocol
 
-Nebula uses its own binary wire protocol — **NMT (Nebula Matter Transfer)** — over TCP with a compact 27-byte fixed header:
+Nebula uses its own binary wire protocol — **NMT (Nebula Matter Transfer)** — over TCP with a compact 27-byte fixed header. The unit transmitted between nodes is called `Matter`, matching the M in NMT.
 
 ```
 ┌─────────────┬─────────┬──────┬───────┬─────────────────────┬────────────────┬──────────────┐
@@ -54,19 +61,21 @@ The body is serialized with **MessagePack** (via [hirotakan/MessagePacker](https
 |-------|------|-------------|
 | `0x01` | `clone` | Fetch remote identity info |
 | `0x02` | `register` | Register a namespace (Stellar→Amas, Amas→Galaxy) |
-| `0x03` | `find` | Look up a namespace address |
-| `0x04` | `call` | Invoke a service method (Planet→Amas→Stellar) |
+| `0x03` | `find` | Look up a namespace — returns Stellar + Amas addresses |
+| `0x04` | `call` | Invoke a service method |
 | `0x05` | `reply` | Response to any of the above |
 | `0x06` | `activate` | Reserved |
 | `0x07` | `heartbeat` | Reserved |
+| `0x08` | `unregister` | Notify Amas that a Stellar is unreachable; returns next available Stellar |
 
 ## Design Goals
 
 - **Zero HTTP for internal traffic** — TCP + MessagePack, not REST
 - **Namespace-based discovery** — services are addressable by logical name, not hardcoded IPs
-- **Amas as the stable routing core** — error handling and failover live in the Amas layer, not scattered across clients
+- **Planet connects directly to Stellar** — zero intermediate hops on the normal call path
+- **Amas as load balancer and failover** — system-managed, not user-facing
 - **Swift-native** — built on Swift NIO with async/await and Actor, not callback chains
-- **Embeddable by default** — no external dependencies required to get started; cluster mode with etcd available for production
+- **Embeddable by default** — no external dependencies required to get started
 
 ## Requirements
 
@@ -100,23 +109,9 @@ let server = try await NMTServer.bind(on: address, delegate: galaxy)
 try await server.listen()
 ```
 
-### 2. Start an Amas (router)
+### 2. Define a Stellar (service host)
 
-```swift
-import Nebula
-import NIO
-
-let amasAddress = try SocketAddress(ipAddress: "::1", port: 8001)
-let amas = DirectAmas(name: "ml-amas", namespace: "production.ml")
-let server = try await NMTServer.bind(on: amasAddress, delegate: amas)
-
-let galaxyClient = try await NMTClient.connect(to: SocketAddress(ipAddress: "::1", port: 9000))
-try await galaxyClient.register(astral: amas, listeningOn: amasAddress)
-
-try await server.listen()
-```
-
-### 3. Define a Stellar (service host)
+Register the Stellar with Galaxy — Galaxy automatically creates and manages a `LoadBalanceAmas` for the namespace.
 
 ```swift
 import Nebula
@@ -134,19 +129,22 @@ stellar.add(service: w2v)
 let stellarAddress = try SocketAddress(ipAddress: "::1", port: 7000)
 let server = try await NMTServer.bind(on: stellarAddress, delegate: stellar)
 
-let amasClient = try await NMTClient.connect(to: SocketAddress(ipAddress: "::1", port: 8001))
-try await amasClient.register(astral: stellar, listeningOn: stellarAddress)
+// Register with Galaxy — Amas is created automatically
+let galaxyClient = try await NMTClient.connect(to: SocketAddress(ipAddress: "::1", port: 9000))
+try await galaxy.register(namespace: stellar.namespace, stellarEndpoint: stellarAddress)
 
 try await server.listen()
 ```
 
-### 4. Call from a Planet (client)
+### 3. Call from a Planet (client)
+
+Planet connects to Galaxy, then calls Stellars directly.
 
 ```swift
 import Nebula
 import NIO
 
-let planet = try await Nebula.planet(name: "client", connecting: SocketAddress(ipAddress: "::1", port: 8001))
+let planet = try await Nebula.planet(name: "client", connectingTo: SocketAddress(ipAddress: "::1", port: 9000))
 
 let result = try await planet.call(
     namespace: "production.ml.embedding",
@@ -162,13 +160,10 @@ let result = try await planet.call(
 # Terminal 1 — Galaxy
 swift run GalaxyServer
 
-# Terminal 2 — Amas
-swift run AmasServer
-
-# Terminal 3 — Stellar
+# Terminal 2 — Stellar
 swift run StellaireServer
 
-# Terminal 4 — Client
+# Terminal 3 — Client
 swift run AmasClient
 ```
 
@@ -180,4 +175,4 @@ swift run AmasClient
 
 ## Status
 
-Active development. Core protocol and transport layer complete. Galaxy cluster mode (etcd backend) in progress.
+Active development. Core protocol and transport layer complete.
