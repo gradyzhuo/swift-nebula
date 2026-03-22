@@ -29,36 +29,5 @@ let package = Package(
         .testTarget(
             name: "NebulaTests",
             dependencies: ["Nebula"]),
-        .executableTarget(
-            name: "GalaxyServer",
-            dependencies: ["Nebula"],
-            path: "Sources/Demo/Server/Galaxy"),
-        .executableTarget(
-            name: "AmasServer",
-            dependencies: ["Nebula"],
-            path: "Sources/Demo/Server/Amas"),
-        .executableTarget(
-            name: "StellaireServer",
-            dependencies: [
-                "Nebula",
-                .product(name: "MessagePacker", package: "MessagePacker"),
-            ],
-            path: "Sources/Demo/Server/Stellar"),
-        .executableTarget(
-            name: "AmasClient",
-            dependencies: ["Nebula"],
-            path: "Sources/Demo/Client/Amas"),
-        .executableTarget(
-            name: "GalaxyClient",
-            dependencies: ["Nebula"],
-            path: "Sources/Demo/Client/Galaxy"),
-        .executableTarget(
-            name: "StellaireClient",
-            dependencies: ["Nebula"],
-            path: "Sources/Demo/Client/Stellar"),
-        .executableTarget(
-            name: "PlanetClient",
-            dependencies: ["Nebula"],
-            path: "Sources/Demo/Planet"),
     ]
 )
