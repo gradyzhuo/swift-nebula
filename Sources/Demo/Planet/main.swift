@@ -1,19 +1,17 @@
-//
-//  File.swift
-//  
-//
-//  Created by Grady Zhuo on 2021/1/24.
-//
-
 import Foundation
 import Nebula
 import NIO
 
-let address = try SocketAddress(ipAddress: "::1", port: 7001)
+let amasAddress = try SocketAddress(ipAddress: "::1", port: 8001)
+let planet = try await Nebula.planet(name: "demo-planet", connecting: amasAddress)
 
-let embedding = try RoguePlanet<ServiceStellar>.locate(to: address)
-//try planet.connect(to: address)
-//print(planet.W2V.wordVector)
-let result = embedding.W2V.wordVector(words:["慢跑", "反光", "排汗", "乾爽", "支撐", "止滑", "登山", "健行"])
-print("result:", result)
-RunLoop.main.run()
+let result = try await planet.call(
+    namespace: "production.ml.embedding",
+    service: "w2v",
+    method: "wordVector",
+    arguments: [
+        try Argument.wrap(key: "words", value: ["慢跑", "反光", "排汗", "乾爽", "支撐"]),
+    ]
+)
+
+print("result:", result as Any)

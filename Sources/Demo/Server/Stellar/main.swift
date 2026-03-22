@@ -1,52 +1,27 @@
-//
-//  File.swift
-//  
-//
-//  Created by Grady Zhuo on 2020/12/29.
-//
-
 import Foundation
 import Nebula
 import NIO
-import Runtime
+import MessagePacker
 
-//class EmbeddingService: ServiceStellaire{
-//
-//}
+// 1. Define service
+let stellar = ServiceStellar(name: "Embedding", namespace: "production.ml.embedding")
 
-//class W2V: Service {
-//    var name: String{
-//        return "W2V"
-//    }
-//
-//    func handle(_ parameters: [String : Codable]) -> Codable {
-//        return "YYY"
-//    }
-//
-//    subscript(dynamicMember member: String) -> Any {
-//        return "XXX"
-//    }
-//
-//}
-
-let address = try SocketAddress(ipAddress: "::1", port: 7000)
-let stellaire = ServiceStellar(name: "Embedding")
-
-var w2v = Service(name: "w2v", version: "2020-12-31")
-stellaire.add(service: w2v)
-
-w2v.add(method: "wordVector") { (parameters) -> Codable in
-    print(parameters)
-    return "hello"
+let w2v = Service(name: "w2v")
+w2v.add(method: "wordVector") { args in
+    print("wordVector called with:", args.toDictionary())
+    let result = ["vector": [0.1, 0.2, 0.3]]
+    return try MessagePackEncoder().encode(result)
 }
+stellar.add(service: w2v)
 
-//let r = w2v("wordVector", with: ["words":["b", "c"]])
-//print(r)
+// 2. Start Stellar server
+let stellarAddress = try SocketAddress(ipAddress: "::1", port: 7000)
+let server = try await NMTServer.bind(on: stellarAddress, delegate: stellar)
+
+// 3. Register with Amas
 let amasAddress = try SocketAddress(ipAddress: "::1", port: 8001)
-let delegate = StellarClientDelegate<ServiceStellar>()
-let amasClient = try DirectAmas.client(target: amasAddress).delegate(delegate)
-try amasClient.register(stellar: stellaire)
+let amasClient = try await NMTClient.connect(to: amasAddress)
+try await amasClient.register(astral: stellar, listeningOn: stellarAddress)
 
-let builder = MatterTransferServer.build(with: stellaire, address: address)
-let server = try builder.bind()
-try server.listen()
+print("Stellar '\(stellar.name)' listening on \(stellarAddress)")
+try await server.listen()

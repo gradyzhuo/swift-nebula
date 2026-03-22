@@ -1,103 +1,75 @@
 //
-//  File.swift
-//  
+//  Planet.swift
 //
-//  Created by Grady Zhuo on 2021/1/21.
+//
+//  Created by Grady Zhuo on 2026/3/22.
 //
 
 import Foundation
 import NIO
+import MessagePacker
 
-@dynamicMemberLookup
-public protocol Planet: Astral{
-    func perform(service: String, method: String, arguments: RawArguments) -> ReturnWrapper?
-    func service(service: String) throws -> Service
-//    func invoker(method: String) -> Invocable
+public protocol Planet: Astral {}
+
+extension Planet {
+    public static var category: AstralCategory { .planet }
 }
 
-extension Planet{
-    public static var category: AstralCategory{
-        return .planet
-    }
-    
-//    public func callAsFunction(service: String, method: String, arguments: RawArguments)->Codable?{
-//        return self.perform(service:service, method: method, arguments: arguments)
-//    }
-    
-    //service
-    public subscript(dynamicMember member: String)->Service {
-        return try! service(service: member)
+/// A client-side planet that calls services through an Amas.
+public final class RoguePlanet: Planet {
+    public let identifier: UUID
+    public let name: String
+
+    private let amasClient: NMTClient
+
+    public init(name: String, amasClient: NMTClient, identifier: UUID = UUID()) {
+        self.identifier = identifier
+        self.name = name
+        self.amasClient = amasClient
     }
 }
 
-public protocol Locatable{
-    associatedtype LocatedAstral: Astral
-    var located: MatterTransferClient<LocatedAstral> { get }
-    init(located: MatterTransferClient<LocatedAstral>)
-}
+// MARK: - Service Call
 
-//extension Locatable where LocatedAstral: Stellar{
-//
-//    public func perform(with arguments: RawArguments)->Codable?{
-//        //arguments to  bytes and send to Stellar
-////        self.pairedClient?.call(service: <#T##String#>, method: <#T##String#>, argumentsDict: <#T##[String : AnyCodable]#>)
-//        return ""
-//    }
-//}
+extension RoguePlanet {
 
-public class RoguePlanet<LocatedAstral: CallableAstral>: Planet, Locatable{
-    
-    public var identifier: UUID = UUID()
-    public var name: String{
-        return self.located.name
-    }
-    public var namespace: String = ""
-    
-    public internal(set) var located: MatterTransferClient<LocatedAstral>
-    
-    public required init(located: MatterTransferClient<LocatedAstral>) {
-        self.located = located
-    }
-    
-    public func perform(service: String, method: String, arguments: RawArguments) -> ReturnWrapper?{
-        do{
-            let invoker = invoker(service: service, method: method)
-            return try invoker.invoke(arguments: arguments.represented())
-        }catch{
-            print(error)
-            return nil
+    public func call(
+        namespace: String,
+        service: String,
+        method: String,
+        arguments: [Argument] = []
+    ) async throws -> Data? {
+        let body = CallBody(
+            namespace: namespace,
+            service: service,
+            method: method,
+            arguments: arguments.toEncoded()
+        )
+        let envelope = try Envelope.make(type: .call, body: body)
+        let replyEnvelope = try await amasClient.request(envelope: envelope)
+        let reply = try replyEnvelope.decodeBody(CallReplyBody.self)
+
+        if let error = reply.error {
+            throw NebulaError.fail(message: error)
         }
+        return reply.result
     }
-    
-    public func invoker(service: String, method: String)-> Invocable{
-        return try! AstralInvoker(client: self.located, service: service, method: method)
-    }
-    
-    public func service(service: String) throws -> Service{
-        return RPCService(name: service) { method in
-            return self.invoker(service: service, method: method)
+
+    public func call<T: Decodable>(
+        namespace: String,
+        service: String,
+        method: String,
+        arguments: [Argument] = [],
+        as type: T.Type
+    ) async throws -> T {
+        guard let data = try await call(
+            namespace: namespace,
+            service: service,
+            method: method,
+            arguments: arguments
+        ) else {
+            throw NebulaError.fail(message: "No result from \(namespace).\(service).\(method)")
         }
+        return try MessagePackDecoder().decode(type, from: data)
     }
-    
 }
-
-extension RoguePlanet{
-    internal func connect(to address: SocketAddress, eventLoopGroup: EventLoopGroup? = nil) throws {
-        self.located = try MatterTransferClient<LocatedAstral>.connect(to: address, eventLoopGroup: eventLoopGroup)
-    }
-    //test
-    public static func locate(to address: SocketAddress) throws ->Self{
-        let located = try MatterTransferClient<LocatedAstral>.connect(to: address, eventLoopGroup: nil)
-        return Self.init(located: located)
-    }
-    
-//    public static func locate(to namespace: String, address: SocketAddress) throws ->Self{
-//        
-//    }
-}
-
-extension RoguePlanet where LocatedAstral: Stellar{
-    
-}
-
-

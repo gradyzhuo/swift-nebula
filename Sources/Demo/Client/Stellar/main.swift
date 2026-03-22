@@ -1,22 +1,21 @@
-//
-//  File.swift
-//  
-//
-//  Created by Grady Zhuo on 2021/1/20.
-//
-
 import Foundation
-import NIO
 import Nebula
+import NIO
 
-let address = try SocketAddress(ipAddress: "::1", port: 7001)
-let client = try ServiceStellar.client(target: address)
-print(client.name, client.identifier)
-let results = try client.call(service: "W2V", method: "wordVector", argumentsDict: ["words":["x", "y", "z"], "d": ["a":["c":"d"]]])
-print(String(buffer: results))
-//let bytes = results.getBytes(at: results.readerIndex, length: results.readableBytes)
+// Direct connection to Stellar (bypassing Amas, for testing)
+let stellarAddress = try SocketAddress(ipAddress: "::1", port: 7000)
+let client = try await NMTClient.connect(to: stellarAddress)
 
+let body = CallBody(
+    namespace: "production.ml.embedding",
+    service: "w2v",
+    method: "wordVector",
+    arguments: [try Argument.wrap(key: "words", value: ["hello", "world"])]
+        .toEncoded()
+        .map { EncodedArgument(key: $0.key, value: $0.value) }
+)
+let envelope = try Envelope.make(type: .call, body: body)
+let reply = try await client.request(envelope: envelope)
+let replyBody = try reply.decodeBody(CallReplyBody.self)
 
-
-
-RunLoop.main.run()
+print("Result:", replyBody.result as Any)

@@ -1,110 +1,84 @@
 //
-//  File.swift
-//  
+//  Stellar.swift
 //
-//  Created by Grady Zhuo on 2020/12/19.
+//
+//  Created by Grady Zhuo on 2026/3/22.
 //
 
 import Foundation
-import NIO
-import AnyCodable
 
-
-public protocol Stellar: CallableAstral{
-    var availableServices: [Version:Service] { get }
-
+public protocol Stellar: Astral {
+    /// Fully qualified namespace, e.g. "production.ml.embedding"
+    var namespace: String { get }
 }
+
 extension Stellar {
-    public static var category: AstralCategory{ .stellaire }
+    public static var category: AstralCategory { .stellar }
 }
 
-//public protocol ServiceStellaire: Stellar{
-//    //Service
-//    var availableServices:[Service] { get }
-//
-//    subscript(dynamicMember member: String)->Any { get set }
-//}
+public typealias ServiceVersion = String
 
-////MARK: - protocol for custom service
-public typealias Version = String
+/// A Stellar that hosts named Services.
+open class ServiceStellar: @unchecked Sendable, Stellar {
+    public let identifier: UUID
+    public let name: String
+    public let namespace: String
 
-open class ServiceStellar: Stellar{
-    public var name: String
-    public var identifier: UUID
-    public internal(set) var availableServices: [Version:Service] = [:]
-    
-    public init(name: String, identifier: UUID = UUID()) {
+    public internal(set) var availableServices: [ServiceVersion: Service] = [:]
+
+    public init(name: String, namespace: String, identifier: UUID = UUID()) {
         self.identifier = identifier
         self.name = name
+        self.namespace = namespace
     }
-    
-    public func add(service: Service){
-        self.availableServices[service.name] = service
+
+    @discardableResult
+    public func add(service: Service) -> Self {
+        availableServices[service.name] = service
+        return self
     }
-    
-//    public func handle(activity: ServiceMethod, arguments: ServiceArgument)-> Result<Codable, Error>{
-//        guard let service = self.availableServices[name] else {
-//            return .failure(NebulaError.fail(message: "fail"))
-//        }
-////        let method = ServiceMethod(format: method)
-//        return .success(service.handle(activity: activity, with: arguments))
-//    }
 }
 
-extension ServiceStellar: AstralServerDelegatable{
-    public final class ServerDelegate: MatterTransferServerDelegate{
-        
-        public typealias AstralType = ServiceStellar
-        
-        public let astral: AstralType
-        
-        public init(astral: AstralType) {
-            self.astral = astral
-        }
-        
-        public func server(didBind server: Server) {
-            print("Stellar did bind: \(server.address)")
-        }
-        
-        public func handle(context: ChannelHandlerContext, matter: CallMatter) throws -> Result<CallMatter.Reply, Error>? {
-            guard  let service = self.astral.availableServices[matter.serviceName] else {
-                return .failure(NebulaError.fail(message: "service [\(matter.serviceName)] not exists."))
-            }
-            
-            let wrappedReturn = try service.perform(method: matter.methodName, with: matter.arguments)
-            print("handle call matter:", matter, "result:", wrappedReturn)
-            let replyBody = Call.ReplyBody.with { body in
-                body.value = wrappedReturn.data ?? Data()
-            }
-            return .success(CallMatter.Reply(body: replyBody))
+// MARK: - NMTServerDelegate
+
+extension ServiceStellar: NMTServerDelegate {
+
+    public func handle(envelope: Envelope) async throws -> Envelope? {
+        switch envelope.type {
+        case .call:
+            return try await handleCall(envelope: envelope)
+        case .clone:
+            return try makeCloneReply(envelope: envelope)
+        default:
+            return nil
         }
     }
 }
 
-//extension ServiceStellar: AstralClientDelegatable{
-//    public final class ClientDelegate: MatterTransferClientDelegate{
-//        public init() {
-//            
-//        }
-//        
-////        public typealias AstralType = ServiceStellar
-////        
-////        public let astral: AstralType
-////        
-////        public init(astral: AstralType) {
-////            self.astral = astral
-////        }
-//        
-//    }
-//}
+// MARK: - Handlers
 
+extension ServiceStellar {
 
-public class StellarClientDelegate<T: Stellar>: MatterTransferClientDelegate{
-    public typealias AstralType = T
-    
-    public var client: MatterTransferClient<AstralType>?
-    
-    public required init() {
-        
+    private func handleCall(envelope: Envelope) async throws -> Envelope {
+        let body = try envelope.decodeBody(CallBody.self)
+
+        guard let service = availableServices[body.service] else {
+            throw NebulaError.serviceNotFound(namespace: body.service)
+        }
+
+        let arguments = body.arguments.map { Argument(key: $0.key, data: $0.value) }
+        let result = try await service.perform(method: body.method, with: arguments)
+
+        let reply = CallReplyBody(result: result)
+        return try envelope.reply(body: reply)
+    }
+
+    private func makeCloneReply(envelope: Envelope) throws -> Envelope {
+        let reply = CloneReplyBody(
+            identifier: identifier.uuidString,
+            name: name,
+            category: AstralCategory.stellar.rawValue
+        )
+        return try envelope.reply(body: reply)
     }
 }
