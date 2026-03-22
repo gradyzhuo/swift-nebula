@@ -22,7 +22,7 @@ Galaxy   →  the service registry and coordinator
         └── Stellar   →  the actual service provider
 ```
 
-Services register under a namespaced address: `{galaxy}.{amas}.{stellar}`
+Services register under a namespaced address: `{environment}.{domain}.{service}`
 
 A Planet (client) asks Galaxy to discover the Stellar address, then **connects directly** — no Amas hop on every call. Amas is managed by Galaxy automatically and only intervenes during failover.
 
@@ -99,31 +99,42 @@ dependencies: [
     .package(url: "https://github.com/gradyzhuo/swift-nebula.git", from: "0.0.1"),
 ],
 targets: [
+    // Core protocol and transport
     .target(name: "MyTarget", dependencies: ["Nebula"]),
+
+    // Optional: NMTServer conformance to ServiceLifecycle.Service
+    .target(name: "MyTarget", dependencies: ["Nebula", "NebulaServiceLifecycle"]),
 ]
 ```
 
 ## Quick Start
 
-### 1. Start a Galaxy (registry)
+### 1. Register your Galaxy with Discovery
 
 ```swift
 import Nebula
 import NIO
 
-let address = try SocketAddress(ipAddress: "::1", port: 9000)
-let galaxy = StandardGalaxy(name: "nebula")
-let server = try await NMTServer.bind(on: address, delegate: galaxy)
-try await server.listen()
+// Map a logical name to the Galaxy's address — no hardcoded IPs in your call sites
+await Nebula.discovery.register("production", at: SocketAddress(ipAddress: "::1", port: 9000))
 ```
 
-### 2. Define a Stellar (service host)
+### 2. Start a Galaxy (registry)
 
-Register the Stellar with Galaxy — Galaxy automatically creates and manages a `LoadBalanceAmas` for the namespace.
+```swift
+let galaxy = StandardGalaxy(name: "nebula")
+let galaxyServer = try await Nebula.server(with: galaxy)
+    .bind(on: SocketAddress(ipAddress: "::1", port: 9000))
+try await galaxyServer.listen()
+```
+
+### 3. Define and start a Stellar (service host)
+
+Galaxy automatically creates and manages a `LoadBalanceAmas` for the namespace.
 
 ```swift
 import Nebula
-import NIO
+import MessagePacker
 
 let stellar = ServiceStellar(name: "Embedding", namespace: "production.ml.embedding")
 
@@ -134,52 +145,63 @@ w2v.add(method: "wordVector") { args in
 }
 stellar.add(service: w2v)
 
-let stellarAddress = try SocketAddress(ipAddress: "::1", port: 7000)
-let server = try await NMTServer.bind(on: stellarAddress, delegate: stellar)
+let stellarServer = try await Nebula.server(with: stellar)
+    .bind(on: SocketAddress(ipAddress: "::1", port: 7000))
 
 // Register with Galaxy — Amas is created automatically
-let galaxyClient = try await NMTClient.connect(to: SocketAddress(ipAddress: "::1", port: 9000))
 try await galaxy.register(namespace: stellar.namespace, stellarEndpoint: stellarAddress)
 
-try await server.listen()
+try await stellarServer.listen()
 ```
 
-### 3. Call from a Planet (client)
+### 4. Call from a Planet (client)
 
-Planet connects to Galaxy, then calls Stellars directly.
+Use an `nmtp://` URI to address a service. The Galaxy name (`production`) is resolved via `Nebula.discovery`.
 
 ```swift
 import Nebula
-import NIO
 
-let planet = try await Nebula.planet(name: "client", connectingTo: SocketAddress(ipAddress: "::1", port: 9000))
+let planet = try await Nebula.planet(
+    connecting: "nmtp://production.ml.embedding/w2v/wordVector"
+)
 
 let result = try await planet.call(
-    namespace: "production.ml.embedding",
-    service: "w2v",
-    method: "wordVector",
-    arguments: [try Argument.wrap(key: "words", value: ["慢跑", "反光", "排汗"])]
+    arguments: ["words": ["慢跑", "反光", "排汗"]]
 )
+```
+
+Arguments support strings, integers, doubles, booleans, and arrays — expressed as Swift literals via `ArgumentValue`.
+
+### URI Format
+
+```
+nmtp://production.ml.embedding/w2v/wordVector?key=value
+       └─────────────────────┘ └──┘ └────────┘
+       namespace               svc  method
+       "production" → resolved to Galaxy address via Nebula.discovery
+```
+
+You can also provide an explicit Galaxy address (bypasses Discovery):
+
+```
+nmtp://[::1]:9000/production.ml.embedding/w2v/wordVector
 ```
 
 ## Running the Demo
 
 ```bash
-# Terminal 1 — Galaxy
-swift run GalaxyServer
-
-# Terminal 2 — Stellar
-swift run StellaireServer
-
-# Terminal 3 — Client
-swift run AmasClient
+cd samples/demo
+swift run
 ```
+
+All servers (Galaxy, Stellar) and the client task start together and shut down gracefully on Ctrl+C.
 
 ## Dependencies
 
 - [apple/swift-nio](https://github.com/apple/swift-nio) — async TCP networking
 - [apple/swift-nio-extras](https://github.com/apple/swift-nio-extras) — NIO utilities
 - [hirotakan/MessagePacker](https://github.com/hirotakan/MessagePacker) — MessagePack serialization
+- [swift-server/swift-service-lifecycle](https://github.com/swift-server/swift-service-lifecycle) — graceful shutdown (`NebulaServiceLifecycle` target only)
 
 ## Status
 
