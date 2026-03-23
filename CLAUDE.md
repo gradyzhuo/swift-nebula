@@ -18,13 +18,11 @@ swift test --filter NebulaTests.<TestClassName>/<testMethodName>
 
 ## Demo Workflow
 
-Run these in separate terminals to test end-to-end:
+The demo is a standalone package under `samples/demo/`:
 
 ```bash
-swift run GalaxyServer    # T1: Start registry (port 9000)
-swift run AmasServer      # T2: Start load-balance router (port 8001)
-swift run StellaireServer # T3: Start service host (port 7000+)
-swift run PlanetClient    # T4: Make a client call (connects via Galaxy)
+cd samples/demo
+swift run    # Starts Galaxy + Stellar + Planet client together; Ctrl+C to stop
 ```
 
 ## Architecture

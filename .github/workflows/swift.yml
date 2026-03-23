@@ -19,13 +19,13 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
-      - uses: SwiftyLab/setup-swift@latest
+      - uses: SwiftyLab/setup-swift@v1
         with:
           swift-version: ${{ matrix.swift }}
       - name: Build
         run: swift build --build-tests
       - name: Test
-        run: swift test -v --no-parallel --disable-xctest --enable-swift-testing
+        run: swift test -v --disable-xctest --enable-swift-testing
 
   # Build + test on macOS (primary development platform)
   build-macos:
@@ -36,15 +36,27 @@ jobs:
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
-      - uses: SwiftyLab/setup-swift@latest
+      - uses: SwiftyLab/setup-swift@v1
         with:
           swift-version: ${{ matrix.swift }}
       - name: Build
         run: swift build --build-tests
       - name: Test
-        run: swift test -v --no-parallel --disable-xctest --enable-swift-testing
+        run: swift test -v --disable-xctest --enable-swift-testing
 
-  # Offline build on additional Linux distributions
+  # Build + test the standalone demo package
+  build-demo:
+    name: Demo package
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: SwiftyLab/setup-swift@v1
+        with:
+          swift-version: "6.2"
+      - name: Build demo
+        run: swift build --package-path samples/demo
+
+  # Offline build on additional Linux distributions.
   # Uses `docker run` instead of the `container:` directive so that
   # actions/checkout@v4 (Node.js 20, requires GLIBC_2.27) runs on the Ubuntu
   # host, while the actual build and tests run inside the target container
@@ -65,4 +77,4 @@ jobs:
             -v ${{ github.workspace }}:/workspace \
             -w /workspace \
             ${{ matrix.image }} \
-            bash -c "swift build --build-tests && swift test -v --no-parallel --disable-xctest --enable-swift-testing"
+            bash -c "swift build --build-tests && swift test -v --disable-xctest --enable-swift-testing"

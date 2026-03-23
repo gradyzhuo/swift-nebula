@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/logo.png" width="228" alt="swift-nebula logo" />
+</p>
+
 # swift-nebula
 
 swift-nebula is a Swift-native distributed service framework designed for internal communication in high-performance environments — where HTTP is too slow, too verbose, and too exposed.
@@ -87,7 +91,7 @@ The body is serialized with **MessagePack** (via [hirotakan/MessagePacker](https
 
 ## Requirements
 
-- Swift 5.9+
+- Swift 6.0+
 - macOS 13+
 
 ## Installation
