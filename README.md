@@ -4,6 +4,9 @@
 
 # swift-nebula
 
+> [!WARNING]
+> This package is in early development. Many features are not yet implemented and the API is subject to breaking changes. Do not use in production.
+
 swift-nebula is a Swift-native distributed service framework designed for internal communication in high-performance environments — where HTTP is too slow, too verbose, and too exposed.
 
 ## Why Nebula?
