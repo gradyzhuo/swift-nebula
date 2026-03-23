@@ -64,7 +64,10 @@ public struct NebulaURI: Sendable {
         user     = components.user
         password = components.password
 
-        ingressHost = host
+        // Strip IPv6 brackets (e.g. "[::1]" → "::1")
+        ingressHost = host.hasPrefix("[") && host.hasSuffix("]")
+            ? String(host.dropFirst().dropLast())
+            : host
         ingressPort = port
 
         let pathParts = components.path
