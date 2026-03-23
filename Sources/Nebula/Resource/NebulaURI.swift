@@ -9,11 +9,14 @@ import Foundation
 
 /// Represents an `nmtp://` URI used to address a service endpoint.
 ///
+/// Namespace format follows reverse-DNS convention: `{stellar}.{amas}.{galaxy}`
+/// — most specific first, Galaxy (environment) last.
+///
 /// Two resolution modes depending on whether a port is present:
 ///
 /// **Discovery mode** (no port — recommended):
 /// ```
-/// nmtp://production.ml.embedding/w2v/wordVector
+/// nmtp://embedding.ml.production/w2v/wordVector
 ///        └─────────────────────┘ └──┘ └────────┘
 ///        namespace               svc  method
 ///        galaxyName = "production" → resolved via Nebula.discovery
@@ -21,7 +24,7 @@ import Foundation
 ///
 /// **Explicit address mode** (with port — no Discovery needed):
 /// ```
-/// nmtp://[::1]:9000/production.ml.embedding/w2v/wordVector
+/// nmtp://[::1]:9000/embedding.ml.production/w2v/wordVector
 ///        └────────┘ └─────────────────────┘ └──┘ └────────┘
 ///        Galaxy addr  namespace              svc  method
 /// ```
@@ -33,7 +36,7 @@ public struct NebulaURI: Sendable {
     public let user: String?
     public let password: String?
 
-    /// The service namespace (e.g. `production.ml.embedding`).
+    /// The service namespace (e.g. `embedding.ml.production`).
     public let namespace: String
     /// Service name (e.g. `w2v`).
     public let service: String?
@@ -42,10 +45,10 @@ public struct NebulaURI: Sendable {
     /// Arguments from query string.
     public let arguments: [Argument]
 
-    /// Galaxy name for Discovery resolution — first dot-separated segment of namespace.
-    /// e.g. `"production"` from `"production.ml.embedding"`.
+    /// Galaxy name for Discovery resolution — last dot-separated segment of namespace.
+    /// e.g. `"production"` from `"embedding.ml.production"`.
     public var galaxyName: String {
-        String(namespace.prefix(while: { $0 != "." }))
+        String(namespace.split(separator: ".").last ?? Substring(namespace))
     }
 
     /// Explicit Galaxy host, present only when a port is included in the URI.

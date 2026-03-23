@@ -8,7 +8,7 @@
 import Foundation
 
 public protocol Stellar: Astral {
-    /// Fully qualified namespace, e.g. "production.ml.embedding"
+    /// Fully qualified namespace, e.g. "embedding.ml.production"
     var namespace: String { get }
 }
 

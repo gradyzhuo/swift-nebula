@@ -9,7 +9,7 @@ import Foundation
 import NIO
 
 public protocol Amas: Astral {
-    /// Namespace prefix this Amas manages, e.g. "production.ml"
+    /// Namespace prefix this Amas manages, e.g. "embedding.ml"
     var namespace: String { get }
 }
 

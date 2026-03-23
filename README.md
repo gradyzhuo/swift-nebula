@@ -26,7 +26,7 @@ Galaxy   →  the service registry and coordinator
         └── Stellar   →  the actual service provider
 ```
 
-Services register under a namespaced address: `{environment}.{domain}.{service}`
+Services register under a namespaced address following reverse-DNS convention: `{stellar}.{amas}.{galaxy}`
 
 A Planet (client) asks Galaxy to discover the Stellar address, then **connects directly** — no Amas hop on every call. Amas is managed by Galaxy automatically and only intervenes during failover.
 
@@ -140,7 +140,7 @@ Galaxy automatically creates and manages a `LoadBalanceAmas` for the namespace.
 import Nebula
 import MessagePacker
 
-let stellar = ServiceStellar(name: "Embedding", namespace: "production.ml.embedding")
+let stellar = ServiceStellar(name: "Embedding", namespace: "embedding.ml.production")
 
 let w2v = Service(name: "w2v")
 w2v.add(method: "wordVector") { args in
@@ -166,7 +166,7 @@ Use an `nmtp://` URI to address a service. The Galaxy name (`production`) is res
 import Nebula
 
 let planet = try await Nebula.planet(
-    connecting: "nmtp://production.ml.embedding/w2v/wordVector"
+    connecting: "nmtp://embedding.ml.production/w2v/wordVector"
 )
 
 let result = try await planet.call(
@@ -179,16 +179,18 @@ Arguments support strings, integers, doubles, booleans, and arrays — expressed
 ### URI Format
 
 ```
-nmtp://production.ml.embedding/w2v/wordVector?key=value
+nmtp://embedding.ml.production/w2v/wordVector?key=value
        └─────────────────────┘ └──┘ └────────┘
        namespace               svc  method
-       "production" → resolved to Galaxy address via Nebula.discovery
+       └──────────────────────────────────────── "production" (last segment) → Galaxy via Nebula.discovery
 ```
+
+Namespace follows reverse-DNS convention — most specific first, Galaxy (environment) last.
 
 You can also provide an explicit Galaxy address (bypasses Discovery):
 
 ```
-nmtp://[::1]:9000/production.ml.embedding/w2v/wordVector
+nmtp://[::1]:9000/embedding.ml.production/w2v/wordVector
 ```
 
 ## Running the Demo

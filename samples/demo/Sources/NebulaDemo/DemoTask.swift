@@ -18,7 +18,7 @@ struct DemoTask: ServiceLifecycle.Service {
         print("\n── Nebula Demo Call ──")
 
         let planet = try await Nebula.planet(
-            connecting: "nmtp://[::1]:9000/production.ml.embedding/w2v/wordVector"
+            connecting: "nmtp://[::1]:9000/embedding.ml.production/w2v/wordVector"
         )
 
         let result = try await planet.call(

@@ -9,7 +9,7 @@ import Nebula
 import MessagePacker
 
 func makeStellar() -> ServiceStellar {
-    let stellar = ServiceStellar(name: "Embedding", namespace: "production.ml.embedding")
+    let stellar = ServiceStellar(name: "Embedding", namespace: "embedding.ml.production")
 
     let w2v = Service(name: "w2v")
     w2v.add(method: "wordVector") { args in

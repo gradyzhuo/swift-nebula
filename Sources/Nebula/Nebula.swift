@@ -50,9 +50,9 @@ extension Nebula {
 
     /// Create a `BoundPlanet` pre-configured with a specific service endpoint from a URI.
     ///
-    /// - Discovery mode (no port): `nmtp://production.ml.embedding/w2v/wordVector`
-    ///   Resolves the Galaxy via `Nebula.discovery` using the first namespace segment.
-    /// - Explicit mode (with port): `nmtp://[::1]:9000/production.ml.embedding/w2v/wordVector`
+    /// - Discovery mode (no port): `nmtp://embedding.ml.production/w2v/wordVector`
+    ///   Resolves the Galaxy via `Nebula.discovery` using the last namespace segment.
+    /// - Explicit mode (with port): `nmtp://[::1]:9000/embedding.ml.production/w2v/wordVector`
     ///   Connects directly without Discovery.
     public static func planet(
         connecting uriString: String,
