@@ -26,7 +26,7 @@ public struct CloneReplyBody: Codable, Sendable {
 // MARK: - Register
 
 public struct RegisterBody: Codable, Sendable {
-    /// Fully qualified namespace, e.g. "embedding.ml.production"
+    /// Fully qualified namespace in forward order, e.g. "production.ml.embedding"
     public var namespace: String
     public var host: String
     public var port: Int

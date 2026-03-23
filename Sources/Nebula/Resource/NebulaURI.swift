@@ -7,26 +7,17 @@
 
 import Foundation
 
-/// Represents an `nmtp://` URI used to address a service endpoint.
+/// Represents an `nmtp://` URI used to address a service endpoint via Ingress.
 ///
-/// Namespace format follows reverse-DNS convention: `{stellar}.{amas}.{galaxy}`
-/// — most specific first, Galaxy (environment) last.
+/// Namespace format follows forward order (discovery path): `{galaxy}.{amas}.{stellar}`
+/// — broadest first, most specific last. Reading left to right matches the routing path.
 ///
-/// Two resolution modes depending on whether a port is present:
+/// Single format — host:port is always the Ingress address:
 ///
-/// **Discovery mode** (no port — recommended):
 /// ```
-/// nmtp://embedding.ml.production/w2v/wordVector
-///        └─────────────────────┘ └──┘ └────────┘
-///        namespace               svc  method
-///        galaxyName = "production" → resolved via Nebula.discovery
-/// ```
-///
-/// **Explicit address mode** (with port — no Discovery needed):
-/// ```
-/// nmtp://[::1]:9000/embedding.ml.production/w2v/wordVector
-///        └────────┘ └─────────────────────┘ └──┘ └────────┘
-///        Galaxy addr  namespace              svc  method
+/// nmtp://localhost:22400/production.ml.embedding/w2v/wordVector?key=value
+///        └─────────────┘ └──────────────────────┘ └──┘ └────────┘
+///        Ingress address  namespace (galaxy.amas.stellar) svc  method
 /// ```
 ///
 /// Query string arguments support JSON strings, numbers, booleans, and arrays.
@@ -36,7 +27,12 @@ public struct NebulaURI: Sendable {
     public let user: String?
     public let password: String?
 
-    /// The service namespace (e.g. `embedding.ml.production`).
+    /// Ingress host address (e.g. `localhost`, `192.168.1.1`, `::1`).
+    public let ingressHost: String
+    /// Ingress port (e.g. `22400`).
+    public let ingressPort: Int
+
+    /// The service namespace in forward order (e.g. `production.ml.embedding`).
     public let namespace: String
     /// Service name (e.g. `w2v`).
     public let service: String?
@@ -45,16 +41,11 @@ public struct NebulaURI: Sendable {
     /// Arguments from query string.
     public let arguments: [Argument]
 
-    /// Galaxy name for Discovery resolution — last dot-separated segment of namespace.
-    /// e.g. `"production"` from `"embedding.ml.production"`.
+    /// Galaxy name — first dot-separated segment of namespace.
+    /// e.g. `"production"` from `"production.ml.embedding"`.
     public var galaxyName: String {
-        String(namespace.split(separator: ".").last ?? Substring(namespace))
+        String(namespace.split(separator: ".").first ?? Substring(namespace))
     }
-
-    /// Explicit Galaxy host, present only when a port is included in the URI.
-    public let explicitGalaxyHost: String?
-    /// Explicit Galaxy port, present only when a port is included in the URI.
-    public let explicitGalaxyPort: Int?
 
     public init(_ string: String) throws {
         guard let components = URLComponents(string: string),
@@ -63,31 +54,30 @@ public struct NebulaURI: Sendable {
         }
 
         guard let host = components.host, !host.isEmpty else {
-            throw NebulaError.invalidURI("Missing host in URI: \(string)")
+            throw NebulaError.invalidURI("Missing Ingress host in URI: \(string)")
+        }
+
+        guard let port = components.port else {
+            throw NebulaError.invalidURI("Missing Ingress port in URI: \(string)")
         }
 
         user     = components.user
         password = components.password
 
+        ingressHost = host
+        ingressPort = port
+
         let pathParts = components.path
             .split(separator: "/", omittingEmptySubsequences: true)
             .map(String.init)
 
-        if let port = components.port {
-            // Explicit address mode: host = Galaxy, path = [namespace, service, method]
-            explicitGalaxyHost = host
-            explicitGalaxyPort = port
-            namespace = pathParts.count > 0 ? pathParts[0] : host
-            service   = pathParts.count > 1 ? pathParts[1] : nil
-            method    = pathParts.count > 2 ? pathParts[2] : nil
-        } else {
-            // Discovery mode: host = namespace, path = [service, method]
-            explicitGalaxyHost = nil
-            explicitGalaxyPort = nil
-            namespace = host
-            service   = pathParts.count > 0 ? pathParts[0] : nil
-            method    = pathParts.count > 1 ? pathParts[1] : nil
+        guard !pathParts.isEmpty else {
+            throw NebulaError.invalidURI("Missing namespace in URI: \(string)")
         }
+
+        namespace = pathParts[0]
+        service   = pathParts.count > 1 ? pathParts[1] : nil
+        method    = pathParts.count > 2 ? pathParts[2] : nil
 
         arguments = try (components.queryItems ?? []).map { item in
             try NebulaURI.parseArgument(key: item.name, rawValue: item.value ?? "")

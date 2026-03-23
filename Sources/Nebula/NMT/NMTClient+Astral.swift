@@ -22,6 +22,47 @@ public struct UnregisterResult: Sendable {
     public let nextAddress: SocketAddress?
 }
 
+// MARK: - Ingress Operations
+
+extension NMTClient where Target == IngressTarget {
+
+    /// Find the Stellar (and optional Amas) address for a namespace via Ingress.
+    public func find(namespace: String) async throws -> FindResult {
+        let body = FindBody(namespace: namespace)
+        let envelope = try Matter.make(type: .find, body: body)
+        let reply = try await request(envelope: envelope)
+        let replyBody = try reply.decodeBody(FindReplyBody.self)
+
+        let stellarAddress: SocketAddress? = try {
+            guard let host = replyBody.stellarHost, let port = replyBody.stellarPort else { return nil }
+            return try SocketAddress.makeAddressResolvingHost(host, port: port)
+        }()
+
+        let amasAddress: SocketAddress? = try {
+            guard let host = replyBody.amasHost, let port = replyBody.amasPort else { return nil }
+            return try SocketAddress.makeAddressResolvingHost(host, port: port)
+        }()
+
+        return FindResult(stellarAddress: stellarAddress, amasAddress: amasAddress)
+    }
+
+    /// Register a Galaxy with Ingress (Galaxy name → address).
+    public func registerGalaxy(name: String, address: SocketAddress, identifier: UUID) async throws {
+        let body = RegisterBody(
+            namespace: name,
+            host: address.ipAddress ?? "::1",
+            port: address.port ?? 0,
+            identifier: identifier.uuidString
+        )
+        let envelope = try Matter.make(type: .register, body: body)
+        let reply = try await request(envelope: envelope)
+        let replyBody = try reply.decodeBody(RegisterReplyBody.self)
+        guard replyBody.status == "ok" else {
+            throw NebulaError.fail(message: "Register Galaxy failed: \(replyBody.status)")
+        }
+    }
+}
+
 // MARK: - Galaxy Operations
 
 extension NMTClient where Target == GalaxyTarget {

@@ -24,20 +24,20 @@ private struct PlanetConnection {
 }
 
 /// A Planet that connects directly to Stellars and uses Amas as a failover path.
-/// - Normal path: Planet → Stellar (direct, no hops)
+/// - Normal path: Planet → Ingress → find Stellar → Planet connects directly to Stellar
 /// - Failover path: Stellar unreachable → notify Amas → get next Stellar → reconnect directly
 public actor RoguePlanet: Planet {
     public let identifier: UUID
     public let name: String
 
-    private let galaxyClient: NMTClient<GalaxyTarget>
+    private let ingressClient: NMTClient<IngressTarget>
     /// Per-namespace connection cache.
     private var connections: [String: PlanetConnection] = [:]
 
-    public init(name: String, galaxyClient: NMTClient<GalaxyTarget>, identifier: UUID = UUID()) {
+    public init(name: String, ingressClient: NMTClient<IngressTarget>, identifier: UUID = UUID()) {
         self.identifier = identifier
         self.name = name
-        self.galaxyClient = galaxyClient
+        self.ingressClient = ingressClient
     }
 }
 
@@ -103,11 +103,11 @@ extension RoguePlanet {
 
 extension RoguePlanet {
 
-    /// Returns the cached connection for the namespace, or establishes one via Galaxy.
+    /// Returns the cached connection for the namespace, or establishes one via Ingress.
     private func connection(for namespace: String) async throws -> PlanetConnection {
         if let conn = connections[namespace] { return conn }
 
-        let result = try await galaxyClient.find(namespace: namespace)
+        let result = try await ingressClient.find(namespace: namespace)
         guard let stellarAddress = result.stellarAddress else {
             throw NebulaError.serviceNotFound(namespace: namespace)
         }

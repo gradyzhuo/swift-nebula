@@ -21,6 +21,10 @@ public protocol AstralClientTarget: NMTClientTarget {}
 
 // MARK: - Concrete Targets
 
+public struct IngressTarget: AstralClientTarget {
+    public init() {}
+}
+
 public struct GalaxyTarget: AstralClientTarget {
     public init() {}
 }
@@ -34,6 +38,10 @@ public struct StellarTarget: AstralClientTarget {
 }
 
 // MARK: - Static Factories
+
+extension NMTClientTarget where Self == IngressTarget {
+    public static var ingress: IngressTarget { .init() }
+}
 
 extension NMTClientTarget where Self == GalaxyTarget {
     public static var galaxy: GalaxyTarget { .init() }

@@ -12,10 +12,6 @@ public final class Nebula: Sendable {
 
     public static let standard: Nebula = Nebula()
 
-    /// The active Discovery service used to resolve Galaxy names.
-    /// Defaults to `LocalDiscovery`. Replace with a cloud-backed implementation for Layer 2.
-    nonisolated(unsafe) public static var discovery: any NebulaDiscovery = LocalDiscovery()
-
     private init() {}
 }
 
@@ -34,26 +30,25 @@ extension Nebula {
 
 extension Nebula {
 
-    /// Create a `RoguePlanet` connected to a Galaxy at the given `SocketAddress`.
+    /// Create a `RoguePlanet` connected to an Ingress at the given `SocketAddress`.
     public static func planet(
         name: String,
-        connectingTo galaxyAddress: SocketAddress,
+        connectingTo ingressAddress: SocketAddress,
         eventLoopGroup: MultiThreadedEventLoopGroup? = nil
     ) async throws -> RoguePlanet {
         let client = try await NMTClient.connect(
-            to: galaxyAddress,
-            as: .galaxy,
+            to: ingressAddress,
+            as: .ingress,
             eventLoopGroup: eventLoopGroup
         )
-        return RoguePlanet(name: name, galaxyClient: client)
+        return RoguePlanet(name: name, ingressClient: client)
     }
 
     /// Create a `BoundPlanet` pre-configured with a specific service endpoint from a URI.
     ///
-    /// - Discovery mode (no port): `nmtp://embedding.ml.production/w2v/wordVector`
-    ///   Resolves the Galaxy via `Nebula.discovery` using the last namespace segment.
-    /// - Explicit mode (with port): `nmtp://[::1]:9000/embedding.ml.production/w2v/wordVector`
-    ///   Connects directly without Discovery.
+    /// URI format: `nmtp://host:port/namespace/service/method`
+    /// - host:port = Ingress address
+    /// - namespace = forward order: galaxy.amas.stellar (e.g. `production.ml.embedding`)
     public static func planet(
         connecting uriString: String,
         eventLoopGroup: MultiThreadedEventLoopGroup? = nil
@@ -67,15 +62,20 @@ extension Nebula {
             throw NebulaError.invalidURI("URI must include method: \(uriString)")
         }
 
-        let galaxyAddress: SocketAddress
-        if let host = uri.explicitGalaxyHost, let port = uri.explicitGalaxyPort {
-            galaxyAddress = try SocketAddress.makeAddressResolvingHost(host, port: port)
-        } else {
-            galaxyAddress = try await discovery.resolve(uri.galaxyName)
-        }
-
-        let client = try await NMTClient.connect(to: galaxyAddress, as: .galaxy, eventLoopGroup: eventLoopGroup)
-        let rogPlanet = RoguePlanet(name: "planet", galaxyClient: client)
-        return BoundPlanet(planet: rogPlanet, namespace: uri.namespace, service: service, method: method)
+        let ingressAddress = try SocketAddress.makeAddressResolvingHost(
+            uri.ingressHost, port: uri.ingressPort
+        )
+        let client = try await NMTClient.connect(
+            to: ingressAddress,
+            as: .ingress,
+            eventLoopGroup: eventLoopGroup
+        )
+        let rogPlanet = RoguePlanet(name: "planet", ingressClient: client)
+        return BoundPlanet(
+            planet: rogPlanet,
+            namespace: uri.namespace,
+            service: service,
+            method: method
+        )
     }
 }

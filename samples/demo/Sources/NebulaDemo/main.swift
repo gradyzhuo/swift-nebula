@@ -5,15 +5,25 @@ import NIO
 import ServiceLifecycle
 import Logging
 
-// MARK: - Discovery
+// MARK: - Ingress
 
-let galaxyAddress = try SocketAddress(ipAddress: "::1", port: 9000)
-await Nebula.discovery.register("production", at: galaxyAddress)
+let ingressAddress = try SocketAddress(ipAddress: "::1", port: 22400)
+let ingress = StandardIngress(name: "ingress")
+let ingressServer = try await Nebula.server(with: ingress).bind(on: ingressAddress)
 
 // MARK: - Galaxy
 
-let galaxy = StandardGalaxy(name: "nebula")
-let galaxyServer = try await Nebula.server(with: galaxy).bind(on: galaxyAddress)
+let galaxy = StandardGalaxy(name: "production")
+let galaxyServer = try await Nebula.server(with: galaxy)
+    .bind(on: SocketAddress(ipAddress: "::1", port: 0))  // dynamic port
+
+// Register Galaxy with Ingress
+let ingressClient = try await NMTClient.connect(to: ingressAddress, as: .ingress)
+try await ingressClient.registerGalaxy(
+    name: "production",
+    address: galaxyServer.address,
+    identifier: galaxy.identifier
+)
 
 // MARK: - Stellar
 
@@ -30,6 +40,7 @@ let logger = Logger(label: "nebula-demo")
 
 let serviceGroup = ServiceGroup(
     services: [
+        ingressServer,
         galaxyServer,
         stellarServer,
         DemoTask(),
