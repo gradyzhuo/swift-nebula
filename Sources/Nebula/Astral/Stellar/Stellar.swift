@@ -26,7 +26,8 @@ open class ServiceStellar: @unchecked Sendable, Stellar {
 
     public internal(set) var availableServices: [ServiceVersion: Service] = [:]
 
-    public init(name: String, namespace: String, identifier: UUID = UUID()) {
+    public init(name: String, namespace: String, identifier: UUID = UUID()) throws {
+        try Self.validateName(name)
         self.identifier = identifier
         self.name = name
         self.namespace = namespace

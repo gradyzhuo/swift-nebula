@@ -29,7 +29,6 @@ private struct PlanetConnection {
 public actor RoguePlanet: Planet {
     public let identifier: UUID
     public let name: String
-    public let namespace: String
     public let service: String
 
     private let ingressClient: NMTClient<IngressTarget>
@@ -38,9 +37,8 @@ public actor RoguePlanet: Planet {
 
     public init(ingressClient: NMTClient<IngressTarget>, identifier: UUID = UUID(), namespace: String, service: String) {
         self.identifier = identifier
-        self.name = "\(namespace)/\(service)"
+        self.name = namespace
         self.ingressClient = ingressClient
-        self.namespace = namespace
         self.service = service
     }
 }

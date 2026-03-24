@@ -36,14 +36,11 @@ extension Nebula {
     /// - namespace = forward order: galaxy.amas.stellar (e.g. `production.ml.embedding`)
     public static func planet(
         connecting uriString: String,
+        service: String,
         eventLoopGroup: MultiThreadedEventLoopGroup? = nil
     ) async throws -> RoguePlanet {
         let uri = try NebulaURI(uriString)
 
-        guard let service = uri.service else {
-            throw NebulaError.invalidURI("URI must include service: \(uriString)")
-        }
-        
         let ingressAddress = try SocketAddress.makeAddressResolvingHost(
             uri.ingressHost, port: uri.ingressPort
         )

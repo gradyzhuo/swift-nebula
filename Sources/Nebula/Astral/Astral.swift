@@ -35,4 +35,11 @@ public protocol ServerAstral: Astral, NMTServerTarget {}
 
 extension Astral {
     public var namespace: String { name }
+
+    /// Validates that a name does not contain `.` which is reserved as the namespace separator.
+    public static func validateName(_ name: String) throws {
+        guard !name.contains(".") else {
+            throw NebulaError.fail(message: "Astral name must not contain '.': \"\(name)\"")
+        }
+    }
 }

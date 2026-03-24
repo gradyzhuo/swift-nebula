@@ -28,7 +28,8 @@ public actor LoadBalanceAmas: Amas {
     private var pendingConnections: [String: [PendingStellar]] = [:]
     private var roundRobinIndex: [String: Int] = [:]
 
-    public init(name: String, namespace: String, identifier: UUID = UUID()) {
+    public init(name: String, namespace: String, identifier: UUID = UUID()) throws {
+        try Self.validateName(name)
         self.identifier = identifier
         self.name = name
         self.namespace = namespace

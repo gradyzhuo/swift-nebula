@@ -13,7 +13,7 @@ let ingressServer = try await Nebula.server(with: ingress).bind(on: ingressAddre
 
 // MARK: - Galaxy
 
-let galaxy = StandardGalaxy(name: "production")
+let galaxy = try StandardGalaxy(name: "production")
 let galaxyServer = try await Nebula.server(with: galaxy)
     .bind(on: SocketAddress(ipAddress: "::1", port: 0))  // dynamic port
 
@@ -27,7 +27,7 @@ try await ingressClient.registerGalaxy(
 
 // MARK: - Stellar
 
-let stellar = makeStellar()  // defined in StellarSetup.swift
+let stellar = try makeStellar()  // defined in StellarSetup.swift
 let stellarAddress = try SocketAddress(ipAddress: "::1", port: 7000)
 let stellarServer = try await Nebula.server(with: stellar).bind(on: stellarAddress)
 
@@ -42,8 +42,7 @@ let serviceGroup = ServiceGroup(
     services: [
         ingressServer,
         galaxyServer,
-        stellarServer,
-        DemoTask(),
+        stellarServer
     ],
     gracefulShutdownSignals: [.sigterm, .sigint],
     logger: logger

@@ -12,7 +12,17 @@ let package = Package(
     ],
     targets: [
         .executableTarget(
-            name: "NebulaDemo",
+            name: "Server",
+            dependencies: [
+                .product(name: "Nebula", package: "swift-nebula"),
+                .product(name: "NebulaServiceLifecycle", package: "swift-nebula"),
+                .product(name: "ServiceLifecycle", package: "swift-service-lifecycle"),
+                .product(name: "Logging", package: "swift-log"),
+                .product(name: "MessagePacker", package: "MessagePacker"),
+            ],
+        ),
+        .executableTarget(
+            name: "Client",
             dependencies: [
                 .product(name: "Nebula", package: "swift-nebula"),
                 .product(name: "NebulaServiceLifecycle", package: "swift-nebula"),

@@ -16,7 +16,8 @@ public actor StandardGalaxy: Galaxy {
     /// Internally managed LoadBalanceAmas instances keyed by namespace.
     private var managedAmas: [String: ManagedAmasEntry] = [:]
 
-    public init(name: String, identifier: UUID = UUID(), registry: (any ServiceRegistry)? = nil) {
+    public init(name: String, identifier: UUID = UUID(), registry: (any ServiceRegistry)? = nil) throws {
+        try Self.validateName(name)
         self.identifier = identifier
         self.name = name
         self.registry = registry ?? InMemoryServiceRegistry()
@@ -95,7 +96,9 @@ extension StandardGalaxy {
         if let entry = managedAmas[namespace] {
             try await entry.addStellar(namespace: namespace, endpoint: stellarEndpoint)
         } else {
-            let amas = LoadBalanceAmas(name: namespace, namespace: namespace)
+            let segments = namespace.split(separator: ".")
+            let amasName = segments.count > 1 ? String(segments[1]) : namespace
+            let amas = try LoadBalanceAmas(name: amasName, namespace: namespace)
             let server = try await NMTServer.bind(
                 on: SocketAddress(ipAddress: "::1", port: 0),
                 target: amas

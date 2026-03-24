@@ -188,16 +188,21 @@ Arguments support strings, integers, doubles, booleans, and arrays — expressed
 
 ### URI Format
 
+The connection URI locates a namespace via Ingress. Each path segment maps to a level in the cosmic hierarchy:
+
 ```
-nmtp://localhost:22400/production.ml.embedding/w2v/wordVector
-       └─────────────┘ └──────────────────────┘ └──┘ └────────┘
-       Ingress address  namespace                svc  method
-                        └── production = Galaxy
-                        └── ml         = Amas
-                        └── embedding  = Stellar
+nmtp://localhost:22400/production/ml/embedding
+       └─────────────┘ └────────┘ └┘ └───────┘
+       Ingress address  Galaxy   Amas  Stellar
 ```
 
+Path segments are joined with `.` internally to form the namespace `production.ml.embedding`.
+
 Namespace follows **forward order** — broadest first, most specific last. Reading left to right matches the discovery routing path: Ingress → Galaxy → Amas → Stellar.
+
+### Naming Rules
+
+Astral node names (Galaxy, Amas, Stellar) **must not contain `.`** — the dot is reserved as the namespace separator. Names like `my.galaxy` or `ml.v2` will throw an error at init time.
 
 ## Running the Demo
 
