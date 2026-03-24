@@ -96,7 +96,9 @@ extension StandardGalaxy {
         if let entry = managedAmas[namespace] {
             try await entry.addStellar(namespace: namespace, endpoint: stellarEndpoint)
         } else {
-            let amas = try LoadBalanceAmas(name: namespace, namespace: namespace)
+            let segments = namespace.split(separator: ".")
+            let amasName = segments.count > 1 ? String(segments[1]) : namespace
+            let amas = try LoadBalanceAmas(name: amasName, namespace: namespace)
             let server = try await NMTServer.bind(
                 on: SocketAddress(ipAddress: "::1", port: 0),
                 target: amas
