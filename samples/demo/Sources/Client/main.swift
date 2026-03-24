@@ -14,7 +14,7 @@ struct VectorResult: Decodable {
 }
 
 let planet = try await Nebula.planet(
-    connecting: "nmtp://[::1]:22400/production.ml.embedding",
+    connecting: "nmtp://[::1]:22400/production/ml/embedding",
     service: "w2v"
 )
 

@@ -9,14 +9,16 @@ import Foundation
 
 /// Represents an `nmtp://` connection URI used to locate a namespace via Ingress.
 ///
-/// Namespace format follows forward order (discovery path): `{galaxy}.{amas}.{stellar}`
-/// — broadest first, most specific last. Reading left to right matches the routing path.
+/// Namespace segments are expressed as path components in forward order (discovery path):
+/// `{galaxy}/{amas}/{stellar}` — broadest first, most specific last.
 ///
 /// ```
-/// nmtp://localhost:22400/production.ml.embedding
-///        └─────────────┘ └──────────────────────┘
-///        Ingress address  namespace (galaxy.amas.stellar)
+/// nmtp://localhost:22400/production/ml/embedding
+///        └─────────────┘ └────────┘ └┘ └───────┘
+///        Ingress address  galaxy    amas stellar
 /// ```
+///
+/// Path segments are joined with `.` to form the namespace string `production.ml.embedding`.
 public struct NebulaURI: Sendable {
     public static let scheme = "nmtp"
 
@@ -68,6 +70,6 @@ public struct NebulaURI: Sendable {
             throw NebulaError.invalidURI("Missing namespace in URI: \(string)")
         }
 
-        namespace = pathParts[0]
+        namespace = pathParts.joined(separator: ".")
     }
 }
