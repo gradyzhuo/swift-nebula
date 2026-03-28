@@ -20,7 +20,7 @@ private struct PlanetConnection {
     var stellarAddress: SocketAddress
 }
 
-/// A Planet that connects directly to Stellars and uses Galaxy for discovery and failover.
+/// A Planet that connects directly to Stellars and uses Ingress for discovery and failover.
 /// - Normal path: Planet → Galaxy (find) → connect directly to Stellar
 /// - Failover path: Stellar unreachable → notify Galaxy (unregister) → get next Stellar → reconnect
 public actor RoguePlanet: Planet {
@@ -28,14 +28,14 @@ public actor RoguePlanet: Planet {
     public let name: String
     public let service: String
 
-    private let galaxyClient: NMTClient<GalaxyTarget>
+    private let ingressClient: NMTClient<IngressTarget>
     /// Per-namespace connection cache.
     private var connections: [String: PlanetConnection] = [:]
 
-    public init(galaxyClient: NMTClient<GalaxyTarget>, identifier: UUID = UUID(), namespace: String, service: String) {
+    public init(ingressClient: NMTClient<IngressTarget>, identifier: UUID = UUID(), namespace: String, service: String) {
         self.identifier = identifier
         self.name = namespace
-        self.galaxyClient = galaxyClient
+        self.ingressClient = ingressClient
         self.service = service
     }
 }
@@ -85,7 +85,7 @@ extension RoguePlanet {
     private func connection(for namespace: String) async throws -> PlanetConnection {
         if let conn = connections[namespace] { return conn }
 
-        let result = try await galaxyClient.find(namespace: namespace)
+        let result = try await ingressClient.find(namespace: namespace)
         guard let stellarAddress = result.stellarAddress else {
             throw NebulaError.serviceNotFound(namespace: namespace)
         }
@@ -122,7 +122,7 @@ extension RoguePlanet {
         deadConnection: PlanetConnection,
         body: CallBody
     ) async throws -> Data? {
-        let result = try await galaxyClient.unregister(
+        let result = try await ingressClient.unregister(
             namespace: namespace,
             host: deadConnection.stellarAddress.ipAddress ?? "",
             port: deadConnection.stellarAddress.port ?? 0

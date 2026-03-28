@@ -1,20 +1,15 @@
-//
-//  DemoTask.swift
-//
-//  Runs a sample Planet call after the servers are up,
-//  then keeps running until Ctrl+C triggers graceful shutdown.
-//
-
 import Foundation
 import Nebula
-import ServiceLifecycle
+
+let ingressHost = ProcessInfo.processInfo.environment["INGRESS_HOST"] ?? "127.0.0.1"
+let ingressPort = ProcessInfo.processInfo.environment["INGRESS_PORT"] ?? "2240"
 
 struct VectorResult: Decodable {
     let vector: [Float]
 }
 
 let planet = try await Nebula.planet(
-    connecting: "nmtp://[::1]:2240/production/ml/embedding",
+    connecting: "nmtp://\(ingressHost):\(ingressPort)/production/ml/embedding",
     service: "w2v"
 )
 

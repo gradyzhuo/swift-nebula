@@ -7,7 +7,7 @@
 
 import Foundation
 
-/// Represents an `nmtp://` connection URI used to locate a namespace via Galaxy.
+/// Represents an `nmtp://` connection URI used to locate a namespace via Ingress.
 ///
 /// Namespace segments are expressed as path components in forward order (discovery path):
 /// `{galaxy}/{amas}/{stellar}` — broadest first, most specific last.
@@ -15,7 +15,7 @@ import Foundation
 /// ```
 /// nmtp://localhost:22400/production/ml/embedding
 ///        └─────────────┘ └────────┘ └┘ └───────┘
-///        Galaxy address  galaxy    amas stellar
+///        Ingress address  galaxy    amas stellar
 /// ```
 ///
 /// Path segments are joined with `.` to form the namespace string `production.ml.embedding`.
@@ -25,15 +25,15 @@ public struct NebulaURI: Sendable {
     public let user: String?
     public let password: String?
 
-    /// Galaxy host address (e.g. `localhost`, `192.168.1.1`, `::1`).
-    public let galaxyHost: String
-    /// Galaxy port (e.g. `22400`).
-    public let galaxyPort: Int
+    /// Ingress host address (e.g. `localhost`, `192.168.1.1`, `::1`).
+    public let ingressHost: String
+    /// Ingress port (e.g. `22400`).
+    public let ingressPort: Int
 
     /// The service namespace in forward order (e.g. `production.ml.embedding`).
     public let namespace: String
 
-    /// Galaxy name — first dot-separated segment of namespace.
+    /// Ingress name — first dot-separated segment of namespace.
     /// e.g. `"production"` from `"production.ml.embedding"`.
     public var galaxyName: String {
         String(namespace.split(separator: ".").first ?? Substring(namespace))
@@ -46,21 +46,21 @@ public struct NebulaURI: Sendable {
         }
 
         guard let host = components.host, !host.isEmpty else {
-            throw NebulaError.invalidURI("Missing Galaxy host in URI: \(string)")
+            throw NebulaError.invalidURI("Missing Ingress host in URI: \(string)")
         }
 
         guard let port = components.port else {
-            throw NebulaError.invalidURI("Missing Galaxy port in URI: \(string)")
+            throw NebulaError.invalidURI("Missing Ingress port in URI: \(string)")
         }
 
         user     = components.user
         password = components.password
 
         // Strip IPv6 brackets (e.g. "[::1]" → "::1")
-        galaxyHost = host.hasPrefix("[") && host.hasSuffix("]")
+        ingressHost = host.hasPrefix("[") && host.hasSuffix("]")
             ? String(host.dropFirst().dropLast())
             : host
-        galaxyPort = port
+        ingressPort = port
 
         let pathParts = components.path
             .split(separator: "/", omittingEmptySubsequences: true)
