@@ -20,6 +20,57 @@ public struct UnregisterResult: Sendable {
     public let nextAddress: SocketAddress?
 }
 
+// MARK: - Ingress Operations
+
+extension NMTClient where Target == IngressTarget {
+
+    /// Find the Stellar address for a namespace via Ingress → Galaxy.
+    public func find(namespace: String) async throws -> FindResult {
+        let body = FindBody(namespace: namespace)
+        let envelope = try Matter.make(type: .find, body: body)
+        let reply = try await request(envelope: envelope)
+        let replyBody = try reply.decodeBody(FindReplyBody.self)
+
+        let stellarAddress: SocketAddress? = try {
+            guard let host = replyBody.stellarHost, let port = replyBody.stellarPort else { return nil }
+            return try SocketAddress(ipAddress: host, port: port)
+        }()
+
+        return FindResult(stellarAddress: stellarAddress)
+    }
+
+    /// Register a Galaxy with Ingress (Galaxy name → address).
+    public func registerGalaxy(name: String, address: SocketAddress, identifier: UUID) async throws {
+        let body = RegisterBody(
+            namespace: name,
+            host: address.ipAddress ?? "0.0.0.0",
+            port: address.port ?? 0,
+            identifier: identifier.uuidString
+        )
+        let envelope = try Matter.make(type: .register, body: body)
+        let reply = try await request(envelope: envelope)
+        let replyBody = try reply.decodeBody(RegisterReplyBody.self)
+        guard replyBody.status == "ok" else {
+            throw NebulaError.fail(message: "Register Galaxy failed: \(replyBody.status)")
+        }
+    }
+
+    /// Notify Ingress that a Stellar is dead (forwarded to Galaxy). Returns next Stellar.
+    public func unregister(namespace: String, host: String, port: Int) async throws -> UnregisterResult {
+        let body = UnregisterBody(namespace: namespace, host: host, port: port)
+        let envelope = try Matter.make(type: .unregister, body: body)
+        let reply = try await request(envelope: envelope)
+        let replyBody = try reply.decodeBody(UnregisterReplyBody.self)
+
+        let nextAddress: SocketAddress? = try {
+            guard let host = replyBody.nextHost, let port = replyBody.nextPort else { return nil }
+            return try SocketAddress(ipAddress: host, port: port)
+        }()
+
+        return UnregisterResult(nextAddress: nextAddress)
+    }
+}
+
 // MARK: - Galaxy Operations
 
 extension NMTClient where Target == GalaxyTarget {

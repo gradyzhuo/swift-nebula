@@ -30,10 +30,10 @@ extension Nebula {
 
 extension Nebula {
 
-    /// Create a `RoguePlanet` connected to a Galaxy via a connection URI.
+    /// Create a `RoguePlanet` connected to an Ingress via a connection URI.
     ///
     /// URI format: `nmtp://host:port/galaxy/amas/stellar`
-    /// - host:port = Galaxy address
+    /// - host:port = Ingress address
     /// - path segments = namespace (joined with `.`)
     public static func planet(
         connecting uriString: String,
@@ -42,14 +42,14 @@ extension Nebula {
     ) async throws -> RoguePlanet {
         let uri = try NebulaURI(uriString)
 
-        let galaxyAddress = try SocketAddress.makeAddressResolvingHost(
-            uri.galaxyHost, port: uri.galaxyPort
+        let ingressAddress = try SocketAddress.makeAddressResolvingHost(
+            uri.ingressHost, port: uri.ingressPort
         )
         let client = try await NMTClient.connect(
-            to: galaxyAddress,
-            as: .galaxy,
+            to: ingressAddress,
+            as: .ingress,
             eventLoopGroup: eventLoopGroup
         )
-        return .init(galaxyClient: client, identifier: .init(), namespace: uri.namespace, service: service)
+        return .init(ingressClient: client, identifier: .init(), namespace: uri.namespace, service: service)
     }
 }
