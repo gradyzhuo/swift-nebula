@@ -49,3 +49,25 @@ services:
       INGRESS_PORT: "2240"
     depends_on:
       - stellar
+
+  satellite-demo:
+    build:
+      context: ../..
+      dockerfile: samples/demo/Dockerfile
+    command: SatelliteDemo
+    environment:
+      INGRESS_HOST: "ingress"
+      INGRESS_PORT: "2240"
+    depends_on:
+      - galaxy
+
+  comet-demo:
+    build:
+      context: ../..
+      dockerfile: samples/demo/Dockerfile
+    command: CometDemo
+    environment:
+      INGRESS_HOST: "ingress"
+      INGRESS_PORT: "2240"
+    depends_on:
+      - satellite-demo
