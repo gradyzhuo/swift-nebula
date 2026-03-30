@@ -36,7 +36,7 @@ public actor StandardIngress {
 
 extension StandardIngress: NMTServerTarget {
 
-    public func handle(envelope: Matter) async throws -> Matter? {
+    public func handle(envelope: Matter, channel: Channel) async throws -> Matter? {
         switch envelope.type {
         case .register:
             return try handleRegister(envelope: envelope)

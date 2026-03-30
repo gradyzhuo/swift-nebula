@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import NIO
 
 public protocol Stellar: Astral {
     /// Fully qualified namespace in forward order, e.g. "production.ml.embedding"
@@ -74,7 +75,7 @@ open class ServiceStellar: @unchecked Sendable, Stellar {
 
 extension ServiceStellar: NMTServerTarget {
 
-    public func handle(envelope: Matter) async throws -> Matter? {
+    public func handle(envelope: Matter, channel: Channel) async throws -> Matter? {
         if let chain {
             return try await chain(envelope)
         }
@@ -90,6 +91,8 @@ extension ServiceStellar {
         switch envelope.type {
         case .call:
             return try await handleCall(envelope: envelope)
+        case .enqueue:
+            return try await handleEnqueue(envelope: envelope)
         case .clone:
             return try makeCloneReply(envelope: envelope)
         default:
@@ -109,6 +112,20 @@ extension ServiceStellar {
 
         let reply = CallReplyBody(result: result)
         return try envelope.reply(body: reply)
+    }
+
+    /// Handle an async enqueue from BrokerAmas — dispatch to service, reply with ACK.
+    private func handleEnqueue(envelope: Matter) async throws -> Matter {
+        let body = try envelope.decodeBody(EnqueueBody.self)
+
+        guard let service = availableServices[body.service] else {
+            throw NebulaError.serviceNotFound(namespace: body.service)
+        }
+
+        let arguments = body.arguments.map { Argument(key: $0.key, data: $0.value) }
+        _ = try await service.perform(method: body.method, with: arguments)
+
+        return try envelope.reply(body: AckBody(messageID: envelope.messageID.uuidString))
     }
 
     private func makeCloneReply(envelope: Matter) throws -> Matter {

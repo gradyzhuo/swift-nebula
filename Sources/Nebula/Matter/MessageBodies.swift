@@ -124,11 +124,13 @@ public struct EncodedArgument: Codable, Sendable {
 
 public struct EnqueueBody: Codable, Sendable {
     public var namespace: String
+    public var service: String
     public var method: String
     public var arguments: [EncodedArgument]
 
-    public init(namespace: String, method: String, arguments: [EncodedArgument]) {
+    public init(namespace: String, service: String, method: String, arguments: [EncodedArgument]) {
         self.namespace = namespace
+        self.service = service
         self.method = method
         self.arguments = arguments
     }

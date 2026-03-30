@@ -96,6 +96,7 @@ extension BrokerAmas {
             do {
                 let body = EnqueueBody(
                     namespace: message.namespace,
+                    service: message.service,
                     method: message.method,
                     arguments: message.arguments
                 )

@@ -81,7 +81,7 @@ private final class NMTServerInboundHandler: ChannelInboundHandler, @unchecked S
 
         Task {
             do {
-                if let reply = try await target.handle(envelope: envelope) {
+                if let reply = try await target.handle(envelope: envelope, channel: channel) {
                     channel.writeAndFlush(reply, promise: nil)
                 }
             } catch {

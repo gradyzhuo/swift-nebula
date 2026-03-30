@@ -12,12 +12,16 @@ public enum AstralCategory: UInt8, Sendable {
     case planet    = 1
     case stellar   = 2
     case galaxy    = 8
+    case comet     = 3
+    case satellite = 4
 
     public var name: String {
         switch self {
-        case .planet:  return "Planet"
-        case .stellar: return "Stellar"
-        case .galaxy:  return "Galaxy"
+        case .planet:    return "Planet"
+        case .stellar:   return "Stellar"
+        case .galaxy:    return "Galaxy"
+        case .comet:     return "Comet"
+        case .satellite: return "Satellite"
         }
     }
 }
