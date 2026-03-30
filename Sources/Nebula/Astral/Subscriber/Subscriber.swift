@@ -1,5 +1,5 @@
 //
-//  Moon.swift
+//  Subscriber.swift
 //
 //
 //  Created by Grady Zhuo on 2026/3/30.
@@ -8,26 +8,23 @@
 import Foundation
 import NIO
 
-/// The standard `Satellite` implementation.
+/// A broker subscriber that receives async events pushed from `BrokerAmas` via Galaxy.
 ///
-/// On init, `Moon` discovers the Galaxy address via Ingress (`findGalaxy`),
-/// connects directly to Galaxy, and joins the subscription group. Galaxy then
-/// pushes `.enqueue` Matter onto the connection; `Moon` forwards them to `events`.
+/// Discovers the Galaxy address via Ingress (`findGalaxy`), connects directly,
+/// and joins a subscription group. Incoming events arrive via `events`.
 ///
 /// ```swift
-/// let moon = try await Moon(
+/// let subscriber = try await Subscriber(
 ///     ingressClient: ingressClient,
 ///     topic: "production.orders",
 ///     subscription: "fulfillment"
 /// )
-/// for await event in moon.events {
+/// for await event in subscriber.events {
 ///     try await handleOrder(event)
 /// }
 /// ```
-public actor Moon: Satellite {
-    public let identifier: UUID
-    public let name: String
-    public let namespace: String      // = topic
+public actor Subscriber {
+    public let topic: String
     public let subscription: String
 
     /// Server-pushed events from Galaxy's `BrokerAmas`.
@@ -39,13 +36,9 @@ public actor Moon: Satellite {
     public init(
         ingressClient: NMTClient<IngressTarget>,
         topic: String,
-        subscription: String,
-        name: String = "moon",
-        identifier: UUID = UUID()
+        subscription: String
     ) async throws {
-        self.identifier = identifier
-        self.name = name
-        self.namespace = topic
+        self.topic = topic
         self.subscription = subscription
 
         // Discover Galaxy via Ingress

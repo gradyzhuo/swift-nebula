@@ -52,4 +52,20 @@ extension Nebula {
         )
         return .init(ingressClient: client, identifier: .init(), namespace: uri.namespace, service: service)
     }
+
+    /// Create a `Moon` typed proxy connected to an Ingress via a connection URI.
+    ///
+    /// URI format: `nmtp://host:port/galaxy/amas/stellar`
+    public static func moon(
+        connecting uriString: String,
+        service: String,
+        eventLoopGroup: MultiThreadedEventLoopGroup? = nil
+    ) async throws -> Moon {
+        let planet = try await Self.planet(
+            connecting: uriString,
+            service: service,
+            eventLoopGroup: eventLoopGroup
+        )
+        return Moon(planet: planet)
+    }
 }
