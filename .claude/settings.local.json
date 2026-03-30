@@ -1,0 +1,46 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(grep -E \"\\\\.swift$\")",
+      "Bash(swift build:*)",
+      "Bash(pkill -f GalaxyServer)",
+      "Bash(pkill -f AmasServer)",
+      "Bash(pkill -f StellaireServer)",
+      "Bash(pkill -f AmasClient)",
+      "Bash(timeout 5 .build/debug/GalaxyServer)",
+      "Bash(echo \"exit: $?\")",
+      "Skill(git-commit-guide)",
+      "Bash(git checkout:*)",
+      "Bash(git add:*)",
+      "Bash(git rm:*)",
+      "Bash(git commit:*)",
+      "Skill(readme-check)",
+      "Bash(ls -la /Users/gradyzhuo/Dropbox/Work/OpenSource/swift-kurrentdb/*.md)",
+      "Bash(swiftc:*)",
+      "Bash(grep -v \"^$\")",
+      "Bash(git push:*)",
+      "Bash(pip3 show:*)",
+      "Bash(git filter-repo:*)",
+      "Bash(git remote:*)",
+      "Bash(gh repo:*)",
+      "Bash(gh pr:*)",
+      "Bash(git stash:*)",
+      "Bash(git cherry-pick:*)",
+      "Bash(git pull:*)",
+      "Bash(git fetch:*)",
+      "Bash(git rebase:*)",
+      "Bash(timeout 10 swift run)",
+      "Bash(git -C /Users/gradyzhuo/Dropbox/Work/OpenSource/swift-nebula add Sources/Nebula/NMT/NMTClient.swift Sources/Nebula/NMT/NMTServer.swift samples/demo/Sources/NebulaDemo/main.swift)",
+      "Bash(git -C:*)",
+      "Bash(git -C /Users/gradyzhuo/Dropbox/Work/OpenSource/swift-nebula push)",
+      "Bash(swift package:*)",
+      "Bash(xxd /tmp/demo_run.txt)",
+      "Bash(swift run:*)",
+      "Bash(gh release:*)",
+      "Bash(git revert:*)"
+    ],
+    "additionalDirectories": [
+      "/Users/gradyzhuo/Dropbox/workspace/Framework/Nebula"
+    ]
+  }
+}

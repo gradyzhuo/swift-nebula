@@ -46,5 +46,17 @@ let package = Package(
                 .product(name: "MessagePacker", package: "MessagePacker"),
             ]
         ),
+        .executableTarget(
+            name: "CometDemo",
+            dependencies: [
+                .product(name: "Nebula", package: "swift-nebula"),
+            ]
+        ),
+        .executableTarget(
+            name: "SatelliteDemo",
+            dependencies: [
+                .product(name: "Nebula", package: "swift-nebula"),
+            ]
+        ),
     ]
 )

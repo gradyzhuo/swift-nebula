@@ -125,7 +125,7 @@ extension ServiceStellar {
         let arguments = body.arguments.map { Argument(key: $0.key, data: $0.value) }
         _ = try await service.perform(method: body.method, with: arguments)
 
-        return try envelope.reply(body: AckBody(messageID: envelope.messageID.uuidString))
+        return try envelope.reply(body: AckBody(matterID: envelope.matterID.uuidString))
     }
 
     private func makeCloneReply(envelope: Matter) throws -> Matter {

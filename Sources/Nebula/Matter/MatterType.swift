@@ -1,5 +1,5 @@
 //
-//  MessageType.swift
+//  MatterType.swift
 //
 //
 //  Created by Grady Zhuo on 2026/3/22.
@@ -7,7 +7,7 @@
 
 import Foundation
 
-public enum MessageType: UInt8, Sendable {
+public enum MatterType: UInt8, Sendable {
     case clone      = 0x01
     case register   = 0x02
     case find       = 0x03
@@ -20,5 +20,6 @@ public enum MessageType: UInt8, Sendable {
     case ack        = 0x0a
     case subscribe  = 0x0b
     case unsubscribe = 0x0c
-    case event      = 0x0d
+    case event       = 0x0d
+    case findGalaxy  = 0x0e
 }

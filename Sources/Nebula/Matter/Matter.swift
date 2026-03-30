@@ -31,16 +31,16 @@ public struct Matter: Sendable {
     public static let headerSize = 27
 
     public let version: UInt8
-    public let type: MessageType
+    public let type: MatterType
     public let flags: UInt8
-    public let messageID: UUID
+    public let matterID: UUID
     public let body: Data
 
-    public init(type: MessageType, flags: UInt8 = 0, messageID: UUID = UUID(), body: Data) {
+    public init(type: MatterType, flags: UInt8 = 0, matterID: UUID = UUID(), body: Data) {
         self.version = 1
         self.type = type
         self.flags = flags
-        self.messageID = messageID
+        self.matterID = matterID
         self.body = body
     }
 }
@@ -56,7 +56,7 @@ extension Matter {
         bytes.append(version)
         bytes.append(type.rawValue)
         bytes.append(flags)
-        bytes.append(contentsOf: messageID.bytes)
+        bytes.append(contentsOf: matterID.bytes)
         bytes.append(contentsOf: UInt32(body.count).bytes())
         bytes.append(contentsOf: body)
         return bytes
@@ -74,12 +74,12 @@ extension Matter {
 
         let version = bytes[4]
 
-        guard let type = MessageType(rawValue: bytes[5]) else {
-            throw NebulaError.invalidMatter("Unknown message type: \(bytes[5])")
+        guard let type = MatterType(rawValue: bytes[5]) else {
+            throw NebulaError.invalidMatter("Unknown matter type: \(bytes[5])")
         }
 
         let flags = bytes[6]
-        let messageID = try UUID(bytes: Array(bytes[7..<23]))
+        let matterID = try UUID(bytes: Array(bytes[7..<23]))
         let length = Int(UInt32(bytes: Array(bytes[23..<27])))
 
         guard bytes.count >= Matter.headerSize + length else {
@@ -91,7 +91,7 @@ extension Matter {
         self.version = version
         self.type = type
         self.flags = flags
-        self.messageID = messageID
+        self.matterID = matterID
         self.body = body
     }
 }

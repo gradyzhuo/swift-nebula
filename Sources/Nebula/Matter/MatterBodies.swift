@@ -69,6 +69,28 @@ public struct FindReplyBody: Codable, Sendable {
     }
 }
 
+// MARK: - FindGalaxy (Broker discovery)
+
+public struct FindGalaxyBody: Codable, Sendable {
+    /// Fully qualified broker topic, e.g. "production.orders.jobs"
+    public var topic: String
+
+    public init(topic: String) {
+        self.topic = topic
+    }
+}
+
+public struct FindGalaxyReplyBody: Codable, Sendable {
+    /// Galaxy address that manages this broker topic (nil = not found)
+    public var galaxyHost: String?
+    public var galaxyPort: Int?
+
+    public init(galaxyHost: String? = nil, galaxyPort: Int? = nil) {
+        self.galaxyHost = galaxyHost
+        self.galaxyPort = galaxyPort
+    }
+}
+
 // MARK: - Unregister
 
 public struct UnregisterBody: Codable, Sendable {
@@ -137,10 +159,10 @@ public struct EnqueueBody: Codable, Sendable {
 }
 
 public struct AckBody: Codable, Sendable {
-    public var messageID: String
+    public var matterID: String
 
-    public init(messageID: String) {
-        self.messageID = messageID
+    public init(matterID: String) {
+        self.matterID = matterID
     }
 }
 

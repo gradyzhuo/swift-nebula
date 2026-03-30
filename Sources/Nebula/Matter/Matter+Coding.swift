@@ -13,19 +13,19 @@ import MessagePacker
 extension Matter {
 
     public static func make<T: Encodable>(
-        type: MessageType,
+        type: MatterType,
         body: T,
-        messageID: UUID = UUID(),
+        matterID: UUID = UUID(),
         flags: UInt8 = 0
     ) throws -> Matter {
         let data = try MessagePackEncoder().encode(body)
-        return Matter(type: type, flags: flags, messageID: messageID, body: data)
+        return Matter(type: type, flags: flags, matterID: matterID, body: data)
     }
 
-    /// Create a reply Matter that matches the request's messageID.
+    /// Create a reply Matter that matches the request's matterID.
     public func reply<T: Encodable>(body: T) throws -> Matter {
         let data = try MessagePackEncoder().encode(body)
-        return Matter(type: .reply, messageID: messageID, body: data)
+        return Matter(type: .reply, matterID: matterID, body: data)
     }
 }
 

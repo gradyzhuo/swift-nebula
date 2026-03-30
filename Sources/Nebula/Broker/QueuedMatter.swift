@@ -1,5 +1,5 @@
 //
-//  QueuedMessage.swift
+//  QueuedMatter.swift
 //
 //
 //  Created by Grady Zhuo on 2026/3/30.
@@ -7,8 +7,8 @@
 
 import Foundation
 
-public struct QueuedMessage: Codable, Sendable {
-    /// Matches `Matter.messageID` — used for deduplication on retry.
+public struct QueuedMatter: Codable, Sendable {
+    /// Matches `Matter.matterID` — used for deduplication on retry.
     public let id: UUID
     public let namespace: String
     public let service: String

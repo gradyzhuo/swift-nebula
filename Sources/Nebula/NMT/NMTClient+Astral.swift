@@ -77,6 +77,17 @@ extension NMTClient where Target == IngressTarget {
         }
     }
 
+    /// Find the Galaxy address that manages a broker topic via Ingress.
+    public func findGalaxy(topic: String) async throws -> SocketAddress? {
+        let body = FindGalaxyBody(topic: topic)
+        let envelope = try Matter.make(type: .findGalaxy, body: body)
+        let reply = try await request(envelope: envelope)
+        let replyBody = try reply.decodeBody(FindGalaxyReplyBody.self)
+
+        guard let host = replyBody.galaxyHost, let port = replyBody.galaxyPort else { return nil }
+        return try SocketAddress.makeAddressResolvingHost(host, port: port)
+    }
+
     /// Notify Ingress that a Stellar is dead (forwarded to Galaxy). Returns next Stellar.
     public func unregister(namespace: String, host: String, port: Int) async throws -> UnregisterResult {
         let body = UnregisterBody(namespace: namespace, host: host, port: port)

@@ -75,14 +75,25 @@ The unit transmitted between nodes is called `Matter` — matching the M in NMT.
 | Magic "NBLA" (4) | Version (1) | Type (1) | Flags (1) | MessageID/UUID (16) | Length (4) | Body (N) |
 ```
 
-Message types: `clone`, `register`, `find`, `call`, `reply`, `activate`, `heartbeat`, `unregister`
+Matter types (`MatterType`): `clone`, `register`, `find`, `call`, `reply`, `activate`, `heartbeat`, `unregister`
+
+### Naming Convention
+
+All identifiers must follow the cosmic metaphor established by the protocol:
+
+- The transmitted unit is **`Matter`** — not "message", "envelope", or "packet"
+- The type enum is **`MatterType`** — not `MessageType`
+- The unique ID in the header is **`messageID`** — this is an intentional exception; it is a technical field name, not a domain concept
+- New types, protocols, and structs introduced in `Sources/Nebula/Matter/` must use `Matter`-based naming
+
+Do not introduce generic networking terminology (`message`, `packet`, `frame`, `envelope`) as type or enum names — use the established cosmic vocabulary instead.
 
 ### Key Packages
 
 | Path | Role |
 |------|------|
-| `Sources/Nebula/Matter/` | Wire format: `Matter` struct (header), message type enum, body codables |
-| `Sources/Nebula/NMT/` | TCP server/client (NIO), `MatterDecoder`/`MatterEncoder` handlers, high-level register/find/unregister API |
+| `Sources/Nebula/Matter/` | Wire format: `Matter` struct (header), `MatterType` enum, body codables |
+| `Sources/Nebula/NMT/` | TCP server/client (NIO), matter codec handlers, high-level register/find/unregister API |
 | `Sources/Nebula/Registry/` | `ServiceRegistry` protocol + `InMemoryServiceRegistry` actor |
 | `Sources/Nebula/Astral/` | Galaxy, Amas, Stellar, Planet entity protocols and implementations |
 | `Sources/Nebula/Resource/` | `Service`, `Method`, `Argument` definitions |

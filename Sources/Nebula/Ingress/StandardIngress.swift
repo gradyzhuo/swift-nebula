@@ -44,6 +44,8 @@ extension StandardIngress: NMTServerTarget {
             return try await handleFind(envelope: envelope)
         case .unregister:
             return try await handleUnregister(envelope: envelope)
+        case .findGalaxy:
+            return try handleFindGalaxy(envelope: envelope)
         case .clone:
             return try makeCloneReply(envelope: envelope)
         default:
@@ -94,6 +96,20 @@ extension StandardIngress {
         let galaxyReply = try await client.request(envelope: unregEnvelope)
         let replyBody = try galaxyReply.decodeBody(UnregisterReplyBody.self)
         return try envelope.reply(body: replyBody)
+    }
+
+    /// Handle broker Galaxy discovery: return the Galaxy address for a given topic.
+    private func handleFindGalaxy(envelope: Matter) throws -> Matter {
+        let body = try envelope.decodeBody(FindGalaxyBody.self)
+        let galaxyName = String(body.topic.split(separator: ".").first ?? Substring(body.topic))
+
+        guard let address = galaxyRegistry[galaxyName] else {
+            return try envelope.reply(body: FindGalaxyReplyBody())
+        }
+        return try envelope.reply(body: FindGalaxyReplyBody(
+            galaxyHost: address.ipAddress,
+            galaxyPort: address.port
+        ))
     }
 
     private func makeCloneReply(envelope: Matter) throws -> Matter {

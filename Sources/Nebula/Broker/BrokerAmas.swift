@@ -27,7 +27,7 @@ public actor BrokerAmas: Amas {
 
     /// subscription name → list of subscriber channels
     private var subscriptions: [String: [Channel]] = [:]
-    /// messageID → (subscription, channel) waiting for ACK
+    /// matterID → (subscription, channel) waiting for ACK
     private var pendingAcks: [UUID: PendingAck] = [:]
     private var roundRobinIndex: [String: Int] = [:]
 
@@ -73,13 +73,13 @@ extension BrokerAmas {
 extension BrokerAmas {
 
     /// Accept an inbound message from Comet, persist it, and start dispatch.
-    func enqueue(message: QueuedMessage) async throws {
+    func enqueue(message: QueuedMatter) async throws {
         try await active.append(message)
         await dispatch(message: message)
     }
 
     /// Fan-out the message to all subscription groups, round-robin within each group.
-    private func dispatch(message: QueuedMessage) async {
+    private func dispatch(message: QueuedMatter) async {
         guard !subscriptions.isEmpty else { return }
 
         for (subscription, channels) in subscriptions {
@@ -91,7 +91,7 @@ extension BrokerAmas {
         }
     }
 
-    private func send(message: QueuedMessage, to channel: Channel, subscription: String) {
+    private func send(message: QueuedMatter, to channel: Channel, subscription: String) {
         Task {
             do {
                 let body = EnqueueBody(
@@ -103,7 +103,7 @@ extension BrokerAmas {
                 let envelope = try Matter.make(
                     type: .enqueue,
                     body: body,
-                    messageID: message.id
+                    matterID: message.id
                 )
                 channel.writeAndFlush(envelope, promise: nil)
                 pendingAcks[message.id] = PendingAck(
@@ -119,11 +119,11 @@ extension BrokerAmas {
         }
     }
 
-    private func scheduleAckTimeout(for message: QueuedMessage) async throws {
+    private func scheduleAckTimeout(for message: QueuedMatter) async throws {
         try await Task.sleep(for: retryPolicy.ackTimeout)
 
         guard pendingAcks[message.id] != nil else { return }  // already ACKed
-        await handleTimeout(messageID: message.id)
+        await handleTimeout(matterID: message.id)
     }
 }
 
@@ -132,13 +132,13 @@ extension BrokerAmas {
 extension BrokerAmas {
 
     /// Called when a subscriber sends back an `.ack` for a message.
-    func acknowledge(messageID: UUID) async {
-        guard pendingAcks.removeValue(forKey: messageID) != nil else { return }
-        try? await active.remove(id: messageID)
+    func acknowledge(matterID: UUID) async {
+        guard pendingAcks.removeValue(forKey: matterID) != nil else { return }
+        try? await active.remove(id: matterID)
     }
 
-    private func handleTimeout(messageID: UUID) async {
-        guard let pending = pendingAcks.removeValue(forKey: messageID) else { return }
+    private func handleTimeout(matterID: UUID) async {
+        guard let pending = pendingAcks.removeValue(forKey: matterID) else { return }
         var message = pending.message
         message.retryCount += 1
 
@@ -150,7 +150,7 @@ extension BrokerAmas {
         }
     }
 
-    private func park(message: QueuedMessage) async {
+    private func park(message: QueuedMatter) async {
         try? await active.remove(id: message.id)
         try? await parked.append(message)
     }
@@ -159,7 +159,7 @@ extension BrokerAmas {
 // MARK: - Supporting Types
 
 private struct PendingAck {
-    let message: QueuedMessage
+    let message: QueuedMatter
     let subscription: String
     let channel: Channel
     let sentAt: Date

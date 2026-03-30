@@ -13,21 +13,21 @@ import Foundation
 /// one for the active dispatch queue and one for parked messages.
 /// This allows mixing backends, e.g. in-memory active + SQLite parked.
 public protocol QueueStorage: Sendable {
-    func append(_ message: QueuedMessage) async throws
+    func append(_ message: QueuedMatter) async throws
     func remove(id: UUID) async throws
-    func pendingMessages() async throws -> [QueuedMessage]
+    func pendingMessages() async throws -> [QueuedMatter]
 }
 
 // MARK: - Default In-Memory Implementation
 
 /// Non-persistent in-memory queue. Default for both active and parked slots.
 public actor InMemoryQueueStorage: QueueStorage {
-    private var messages: [UUID: QueuedMessage] = [:]
+    private var messages: [UUID: QueuedMatter] = [:]
     private var order: [UUID] = []
 
     public init() {}
 
-    public func append(_ message: QueuedMessage) {
+    public func append(_ message: QueuedMatter) {
         messages[message.id] = message
         order.append(message.id)
     }
@@ -37,7 +37,7 @@ public actor InMemoryQueueStorage: QueueStorage {
         order.removeAll { $0 == id }
     }
 
-    public func pendingMessages() -> [QueuedMessage] {
+    public func pendingMessages() -> [QueuedMatter] {
         order.compactMap { messages[$0] }
     }
 }

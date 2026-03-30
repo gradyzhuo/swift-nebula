@@ -127,8 +127,8 @@ extension StandardGalaxy {
     private func handleEnqueue(envelope: Matter) async throws -> Matter {
         let body = try envelope.decodeBody(EnqueueBody.self)
         let broker = try brokerAmasFor(namespace: body.namespace)
-        let message = QueuedMessage(
-            id: envelope.messageID,
+        let message = QueuedMatter(
+            id: envelope.matterID,
             namespace: body.namespace,
             service: body.service,
             method: body.method,
@@ -140,10 +140,10 @@ extension StandardGalaxy {
 
     private func handleAck(envelope: Matter) async throws -> Matter? {
         let body = try envelope.decodeBody(AckBody.self)
-        guard let messageID = UUID(uuidString: body.messageID) else { return nil }
+        guard let matterID = UUID(uuidString: body.matterID) else { return nil }
         // Find the BrokerAmas that owns this message (search all brokers)
         for broker in managedBrokerAmas.values {
-            await broker.acknowledge(messageID: messageID)
+            await broker.acknowledge(matterID: matterID)
         }
         return nil
     }
@@ -152,14 +152,14 @@ extension StandardGalaxy {
         let body = try envelope.decodeBody(SubscribeBody.self)
         let broker = try brokerAmasFor(namespace: body.topic)
         await broker.subscribe(subscription: body.subscription, channel: channel)
-        return nil
+        return try envelope.reply(body: RegisterReplyBody(status: "ok"))
     }
 
     private func handleUnsubscribe(envelope: Matter, channel: Channel) async throws -> Matter? {
         let body = try envelope.decodeBody(UnsubscribeBody.self)
         guard let broker = managedBrokerAmas[body.topic] else { return nil }
         await broker.unsubscribe(subscription: body.subscription, channel: channel)
-        return nil
+        return try envelope.reply(body: RegisterReplyBody(status: "ok"))
     }
 }
 
