@@ -15,6 +15,7 @@ public enum NebulaError: Error {
     case notConnected
     case serviceNotFound(namespace: String)
     case methodNotFound(service: String, method: String)
+    case connectionClosed
 }
 
 // MARK: - UUID

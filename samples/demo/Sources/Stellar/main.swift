@@ -7,12 +7,12 @@ import Logging
 import MessagePacker
 
 let stellarHost = ProcessInfo.processInfo.environment["STELLAR_HOST"] ?? "0.0.0.0"
-let stellarPort = Int(ProcessInfo.processInfo.environment["STELLAR_PORT"] ?? "7000")!
+let stellarPort = Int(ProcessInfo.processInfo.environment["STELLAR_PORT"] ?? "62300")!
 let stellarName = ProcessInfo.processInfo.environment["STELLAR_NAME"] ?? "Embedding"
 let namespace = ProcessInfo.processInfo.environment["STELLAR_NAMESPACE"] ?? "production.ml.embedding"
 
 let galaxyHost = ProcessInfo.processInfo.environment["GALAXY_HOST"] ?? "127.0.0.1"
-let galaxyPort = Int(ProcessInfo.processInfo.environment["GALAXY_PORT"] ?? "9001")!
+let galaxyPort = Int(ProcessInfo.processInfo.environment["GALAXY_PORT"] ?? "62200")!
 
 // Define Stellar and its services
 let stellar = try ServiceStellar(name: stellarName, namespace: namespace)
@@ -31,7 +31,7 @@ let stellarServer = try await Nebula.server(with: stellar)
 
 // Register with Galaxy
 let galaxyClient = try await NMTClient.connect(
-    to: SocketAddress(ipAddress: galaxyHost, port: galaxyPort),
+    to: try SocketAddress.makeAddressResolvingHost(galaxyHost, port: galaxyPort),
     as: .galaxy
 )
 try await galaxyClient.register(astral: stellar, listeningOn: stellarServer.address)

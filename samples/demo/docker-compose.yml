@@ -5,10 +5,10 @@ services:
       dockerfile: samples/demo/Dockerfile
     command: Ingress
     ports:
-      - "2240:2240"
+      - "6224:6224"
     environment:
       INGRESS_HOST: "0.0.0.0"
-      INGRESS_PORT: "2240"
+      INGRESS_PORT: "6224"
 
   galaxy:
     build:
@@ -17,10 +17,11 @@ services:
     command: Galaxy
     environment:
       GALAXY_HOST: "0.0.0.0"
-      GALAXY_PORT: "9001"
+      GALAXY_PORT: "62200"
       GALAXY_NAME: "production"
+      GALAXY_ADVERTISE_HOST: "galaxy"
       INGRESS_HOST: "ingress"
-      INGRESS_PORT: "2240"
+      INGRESS_PORT: "6224"
     depends_on:
       - ingress
 
@@ -29,45 +30,14 @@ services:
       context: ../..
       dockerfile: samples/demo/Dockerfile
     command: Stellar
+    ports:
+      - "62300:62300"
     environment:
       STELLAR_HOST: "0.0.0.0"
-      STELLAR_PORT: "7000"
+      STELLAR_PORT: "62300"
       STELLAR_NAME: "Embedding"
       STELLAR_NAMESPACE: "production.ml.embedding"
       GALAXY_HOST: "galaxy"
-      GALAXY_PORT: "9001"
+      GALAXY_PORT: "62200"
     depends_on:
       - galaxy
-
-  client:
-    build:
-      context: ../..
-      dockerfile: samples/demo/Dockerfile
-    command: Client
-    environment:
-      INGRESS_HOST: "ingress"
-      INGRESS_PORT: "2240"
-    depends_on:
-      - stellar
-
-  satellite-demo:
-    build:
-      context: ../..
-      dockerfile: samples/demo/Dockerfile
-    command: SatelliteDemo
-    environment:
-      INGRESS_HOST: "ingress"
-      INGRESS_PORT: "2240"
-    depends_on:
-      - galaxy
-
-  comet-demo:
-    build:
-      context: ../..
-      dockerfile: samples/demo/Dockerfile
-    command: CometDemo
-    environment:
-      INGRESS_HOST: "ingress"
-      INGRESS_PORT: "2240"
-    depends_on:
-      - satellite-demo

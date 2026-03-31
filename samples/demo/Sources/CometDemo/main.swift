@@ -8,10 +8,10 @@ import Nebula
 // Run after Ingress and Galaxy are up.
 //
 // Usage:
-//   INGRESS_HOST=127.0.0.1 INGRESS_PORT=2240 swift run CometDemo
+//   INGRESS_HOST=127.0.0.1 INGRESS_PORT=6224 swift run CometDemo
 
 let ingressHost = ProcessInfo.processInfo.environment["INGRESS_HOST"] ?? "127.0.0.1"
-let ingressPort = Int(ProcessInfo.processInfo.environment["INGRESS_PORT"] ?? "2240")!
+let ingressPort = Int(ProcessInfo.processInfo.environment["INGRESS_PORT"] ?? "6224")!
 
 let ingressAddress = try SocketAddress.makeAddressResolvingHost(ingressHost, port: ingressPort)
 let ingressClient = try await NMTClient.connect(to: ingressAddress, as: .ingress)

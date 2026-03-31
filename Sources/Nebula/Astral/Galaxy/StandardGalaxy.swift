@@ -9,7 +9,7 @@ import Foundation
 import NIO
 
 public actor StandardGalaxy: Galaxy {
-    public static let defaultPort: Int = 2240
+    public static let defaultPort: Int = 62200
 
     public let identifier: UUID
     public let name: String

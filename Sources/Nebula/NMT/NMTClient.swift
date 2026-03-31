@@ -131,6 +131,16 @@ final class PendingRequests: @unchecked Sendable {
         lock.unlock()
         continuation?.resume(throwing: error)
     }
+
+    func failAll(error: Error) {
+        lock.lock()
+        let all = waiting
+        waiting.removeAll()
+        lock.unlock()
+        for continuation in all.values {
+            continuation.resume(throwing: error)
+        }
+    }
 }
 
 // MARK: - NMTClientInboundHandler
@@ -153,7 +163,12 @@ private final class NMTClientInboundHandler: ChannelInboundHandler, @unchecked S
         }
     }
 
+    func channelInactive(context: ChannelHandlerContext) {
+        pendingRequests.failAll(error: NebulaError.connectionClosed)
+    }
+
     func errorCaught(context: ChannelHandlerContext, error: Error) {
+        pendingRequests.failAll(error: error)
         context.close(promise: nil)
     }
 }

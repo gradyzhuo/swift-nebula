@@ -16,7 +16,7 @@ import NIO
 ///
 /// Default port: 2240
 public actor StandardIngress {
-    public static let defaultPort: Int = 2240
+    public static let defaultPort: Int = 6224
 
     public let identifier: UUID
     public let name: String
