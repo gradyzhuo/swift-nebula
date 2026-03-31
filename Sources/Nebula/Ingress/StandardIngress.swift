@@ -44,6 +44,8 @@ extension StandardIngress: NMTServerTarget {
             return try await handleFind(envelope: envelope)
         case .unregister:
             return try await handleUnregister(envelope: envelope)
+        case .enqueue:
+            return try await handleEnqueue(envelope: envelope)
         case .findGalaxy:
             return try handleFindGalaxy(envelope: envelope)
         case .clone:
@@ -95,6 +97,22 @@ extension StandardIngress {
         let unregEnvelope = try Matter.make(type: .unregister, body: body)
         let galaxyReply = try await client.request(envelope: unregEnvelope)
         let replyBody = try galaxyReply.decodeBody(UnregisterReplyBody.self)
+        return try envelope.reply(body: replyBody)
+    }
+
+    /// Handle enqueue from Comet: forward to the Galaxy that owns the namespace.
+    private func handleEnqueue(envelope: Matter) async throws -> Matter {
+        let body = try envelope.decodeBody(EnqueueBody.self)
+        let galaxyName = String(body.namespace.split(separator: ".").first ?? Substring(body.namespace))
+
+        guard let galaxyAddress = galaxyRegistry[galaxyName] else {
+            return try envelope.reply(body: RegisterReplyBody(status: "no-galaxy"))
+        }
+
+        let client = try await galaxyClient(for: galaxyName, at: galaxyAddress)
+        let enqueueEnvelope = try Matter.make(type: .enqueue, body: body)
+        let galaxyReply = try await client.request(envelope: enqueueEnvelope)
+        let replyBody = try galaxyReply.decodeBody(RegisterReplyBody.self)
         return try envelope.reply(body: replyBody)
     }
 
