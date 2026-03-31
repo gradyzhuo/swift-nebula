@@ -6,6 +6,9 @@ import ServiceLifecycle
 import Logging
 import MessagePacker
 
+LoggingSystem.bootstrap(ColorLogHandler.init)
+
+let logger = Logger(label: "nebula.stellar")
 let stellarHost = ProcessInfo.processInfo.environment["STELLAR_HOST"] ?? "0.0.0.0"
 let stellarPort = Int(ProcessInfo.processInfo.environment["STELLAR_PORT"] ?? "62300")!
 let stellarName = ProcessInfo.processInfo.environment["STELLAR_NAME"] ?? "Embedding"
@@ -19,7 +22,7 @@ let stellar = try ServiceStellar(name: stellarName, namespace: namespace)
 
 let w2v = Service(name: "w2v")
 w2v.add(method: "wordVector") { args in
-    print("[Stellar] wordVector called with:", args.toDictionary())
+    logger.info("wordVector called with: \(args.toDictionary())")
     let result = ["vector": [0.1, 0.2, 0.3]]
     return try MessagePackEncoder().encode(result)
 }
@@ -36,13 +39,11 @@ let galaxyClient = try await NMTClient.connect(
 )
 try await galaxyClient.register(astral: stellar, listeningOn: stellarServer.address)
 
-let logger = Logger(label: "nebula-stellar")
+logger.info("Stellar '\(stellarName)' (\(namespace)) listening on \(stellarHost):\(stellarPort), registered with Galaxy")
 
 let serviceGroup = ServiceGroup(
     services: [stellarServer],
     gracefulShutdownSignals: [.sigterm, .sigint],
     logger: logger
 )
-
-print("Stellar '\(stellarName)' (\(namespace)) listening on \(stellarHost):\(stellarPort), registered with Galaxy")
 try await serviceGroup.run()

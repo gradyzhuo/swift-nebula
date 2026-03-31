@@ -5,6 +5,9 @@ import NIO
 import ServiceLifecycle
 import Logging
 
+LoggingSystem.bootstrap(ColorLogHandler.init)
+
+let logger = Logger(label: "nebula.galaxy")
 let galaxyHost = ProcessInfo.processInfo.environment["GALAXY_HOST"] ?? "0.0.0.0"
 let galaxyPort = Int(ProcessInfo.processInfo.environment["GALAXY_PORT"] ?? "62200")!
 let galaxyName = ProcessInfo.processInfo.environment["GALAXY_NAME"] ?? "production"
@@ -34,13 +37,11 @@ try await ingressClient.registerGalaxy(
     identifier: galaxy.identifier
 )
 
-let logger = Logger(label: "nebula-galaxy")
+logger.info("Galaxy '\(galaxyName)' listening on \(galaxyHost):\(galaxyPort), registered with Ingress")
 
 let serviceGroup = ServiceGroup(
     services: [galaxyServer],
     gracefulShutdownSignals: [.sigterm, .sigint],
     logger: logger
 )
-
-print("Galaxy '\(galaxyName)' listening on \(galaxyHost):\(galaxyPort), registered with Ingress")
 try await serviceGroup.run()
