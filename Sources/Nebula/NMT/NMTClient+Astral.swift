@@ -13,8 +13,6 @@ import NIO
 public struct FindResult: Sendable {
     /// Direct Stellar endpoint to connect to.
     public let stellarAddress: SocketAddress?
-    /// Amas endpoint for failover (nil = no Amas, no failover available).
-    public let amasAddress: SocketAddress?
 }
 
 public struct UnregisterResult: Sendable {
@@ -26,7 +24,7 @@ public struct UnregisterResult: Sendable {
 
 extension NMTClient where Target == IngressTarget {
 
-    /// Find the Stellar (and optional Amas) address for a namespace via Ingress.
+    /// Find the Stellar address for a namespace via Ingress → Galaxy.
     public func find(namespace: String) async throws -> FindResult {
         let body = FindBody(namespace: namespace)
         let envelope = try Matter.make(type: .find, body: body)
@@ -38,19 +36,14 @@ extension NMTClient where Target == IngressTarget {
             return try SocketAddress.makeAddressResolvingHost(host, port: port)
         }()
 
-        let amasAddress: SocketAddress? = try {
-            guard let host = replyBody.amasHost, let port = replyBody.amasPort else { return nil }
-            return try SocketAddress.makeAddressResolvingHost(host, port: port)
-        }()
-
-        return FindResult(stellarAddress: stellarAddress, amasAddress: amasAddress)
+        return FindResult(stellarAddress: stellarAddress)
     }
 
     /// Register a Galaxy with Ingress (Galaxy name → address).
     public func registerGalaxy(name: String, address: SocketAddress, identifier: UUID) async throws {
         let body = RegisterBody(
             namespace: name,
-            host: address.ipAddress ?? "::1",
+            host: address.ipAddress ?? "0.0.0.0",
             port: address.port ?? 0,
             identifier: identifier.uuidString
         )
@@ -61,13 +54,28 @@ extension NMTClient where Target == IngressTarget {
             throw NebulaError.fail(message: "Register Galaxy failed: \(replyBody.status)")
         }
     }
+
+    /// Notify Ingress that a Stellar is dead (forwarded to Galaxy). Returns next Stellar.
+    public func unregister(namespace: String, host: String, port: Int) async throws -> UnregisterResult {
+        let body = UnregisterBody(namespace: namespace, host: host, port: port)
+        let envelope = try Matter.make(type: .unregister, body: body)
+        let reply = try await request(envelope: envelope)
+        let replyBody = try reply.decodeBody(UnregisterReplyBody.self)
+
+        let nextAddress: SocketAddress? = try {
+            guard let host = replyBody.nextHost, let port = replyBody.nextPort else { return nil }
+            return try SocketAddress.makeAddressResolvingHost(host, port: port)
+        }()
+
+        return UnregisterResult(nextAddress: nextAddress)
+    }
 }
 
 // MARK: - Galaxy Operations
 
 extension NMTClient where Target == GalaxyTarget {
 
-    /// Find the Stellar (and optional Amas) address for a namespace.
+    /// Find the Stellar address for a namespace.
     public func find(namespace: String) async throws -> FindResult {
         let body = FindBody(namespace: namespace)
         let envelope = try Matter.make(type: .find, body: body)
@@ -79,12 +87,7 @@ extension NMTClient where Target == GalaxyTarget {
             return try SocketAddress.makeAddressResolvingHost(host, port: port)
         }()
 
-        let amasAddress: SocketAddress? = try {
-            guard let host = replyBody.amasHost, let port = replyBody.amasPort else { return nil }
-            return try SocketAddress.makeAddressResolvingHost(host, port: port)
-        }()
-
-        return FindResult(stellarAddress: stellarAddress, amasAddress: amasAddress)
+        return FindResult(stellarAddress: stellarAddress)
     }
 
     /// Register a namespace → address mapping in Galaxy.
@@ -111,13 +114,8 @@ extension NMTClient where Target == GalaxyTarget {
             identifier: astral.identifier
         )
     }
-}
 
-// MARK: - Amas Operations
-
-extension NMTClient where Target == AmasTarget {
-
-    /// Notify an Amas that a Stellar is dead. Returns the next available Stellar address.
+    /// Notify Galaxy that a Stellar is dead. Returns the next available Stellar address.
     public func unregister(namespace: String, host: String, port: Int) async throws -> UnregisterResult {
         let body = UnregisterBody(namespace: namespace, host: host, port: port)
         let envelope = try Matter.make(type: .unregister, body: body)

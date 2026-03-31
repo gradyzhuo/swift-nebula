@@ -18,14 +18,11 @@ extension Planet {
 private struct PlanetConnection {
     var stellarClient: NMTClient<StellarTarget>
     var stellarAddress: SocketAddress
-    /// Amas client for failover — nil if this namespace has no Amas.
-    var amasClient: NMTClient<AmasTarget>?
-    var amasAddress: SocketAddress?
 }
 
-/// A Planet that connects directly to Stellars and uses Amas as a failover path.
-/// - Normal path: Planet → Ingress → find Stellar → Planet connects directly to Stellar
-/// - Failover path: Stellar unreachable → notify Amas → get next Stellar → reconnect directly
+/// A Planet that connects directly to Stellars and uses Ingress for discovery and failover.
+/// - Normal path: Planet → Ingress (find) → connect directly to Stellar
+/// - Failover path: Stellar unreachable → notify Ingress (unregister) → get next Stellar → reconnect
 public actor RoguePlanet: Planet {
     public let identifier: UUID
     public let name: String
@@ -94,16 +91,10 @@ extension RoguePlanet {
         }
 
         let stellarClient = try await NMTClient.connect(to: stellarAddress, as: .stellar)
-        var amasClient: NMTClient<AmasTarget>?
-        if let amasAddress = result.amasAddress {
-            amasClient = try await NMTClient.connect(to: amasAddress, as: .amas)
-        }
 
         let conn = PlanetConnection(
             stellarClient: stellarClient,
-            stellarAddress: stellarAddress,
-            amasClient: amasClient,
-            amasAddress: result.amasAddress
+            stellarAddress: stellarAddress
         )
         connections[namespace] = conn
         return conn
@@ -125,18 +116,13 @@ extension RoguePlanet {
 extension RoguePlanet {
 
     /// Called when a direct Stellar connection fails.
-    /// Notifies the Amas, gets the next Stellar address, reconnects directly, and retries.
+    /// Notifies Galaxy, gets the next Stellar address, reconnects directly, and retries.
     private func failover(
         namespace: String,
         deadConnection: PlanetConnection,
         body: CallBody
     ) async throws -> Data? {
-        guard let amasClient = deadConnection.amasClient else {
-            connections.removeValue(forKey: namespace)
-            throw NebulaError.serviceNotFound(namespace: namespace)
-        }
-
-        let result = try await amasClient.unregister(
+        let result = try await ingressClient.unregister(
             namespace: namespace,
             host: deadConnection.stellarAddress.ipAddress ?? "",
             port: deadConnection.stellarAddress.port ?? 0
@@ -150,9 +136,7 @@ extension RoguePlanet {
         let newClient = try await NMTClient.connect(to: nextAddress, as: .stellar)
         connections[namespace] = PlanetConnection(
             stellarClient: newClient,
-            stellarAddress: nextAddress,
-            amasClient: amasClient,
-            amasAddress: deadConnection.amasAddress
+            stellarAddress: nextAddress
         )
 
         return try await perform(body: body, via: newClient)

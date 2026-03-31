@@ -8,11 +8,10 @@
 import Foundation
 import NIO
 
-public protocol Amas: Astral {
-    /// Namespace prefix this Amas manages, e.g. "embedding.ml"
+/// Internal load balancer managed by Galaxy.
+/// Amas is not exposed as a standalone TCP server.
+public protocol Amas: Sendable {
+    var identifier: UUID { get }
+    var name: String { get }
     var namespace: String { get }
-}
-
-extension Amas {
-    public static var category: AstralCategory { .amas }
 }

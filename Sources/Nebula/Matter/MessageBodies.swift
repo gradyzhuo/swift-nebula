@@ -59,19 +59,13 @@ public struct FindBody: Codable, Sendable {
 }
 
 public struct FindReplyBody: Codable, Sendable {
-    /// Direct Stellar endpoint (nil = not found)
+    /// Stellar endpoint (nil = not found)
     public var stellarHost: String?
     public var stellarPort: Int?
-    /// Amas endpoint for failover (nil = no Amas, direct only)
-    public var amasHost: String?
-    public var amasPort: Int?
 
-    public init(stellarHost: String? = nil, stellarPort: Int? = nil,
-                amasHost: String? = nil, amasPort: Int? = nil) {
+    public init(stellarHost: String? = nil, stellarPort: Int? = nil) {
         self.stellarHost = stellarHost
         self.stellarPort = stellarPort
-        self.amasHost = amasHost
-        self.amasPort = amasPort
     }
 }
 

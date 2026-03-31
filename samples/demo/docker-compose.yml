@@ -1,0 +1,51 @@
+services:
+  ingress:
+    build:
+      context: ../..
+      dockerfile: samples/demo/Dockerfile
+    command: Ingress
+    ports:
+      - "2240:2240"
+    environment:
+      INGRESS_HOST: "0.0.0.0"
+      INGRESS_PORT: "2240"
+
+  galaxy:
+    build:
+      context: ../..
+      dockerfile: samples/demo/Dockerfile
+    command: Galaxy
+    environment:
+      GALAXY_HOST: "0.0.0.0"
+      GALAXY_PORT: "9001"
+      GALAXY_NAME: "production"
+      INGRESS_HOST: "ingress"
+      INGRESS_PORT: "2240"
+    depends_on:
+      - ingress
+
+  stellar:
+    build:
+      context: ../..
+      dockerfile: samples/demo/Dockerfile
+    command: Stellar
+    environment:
+      STELLAR_HOST: "0.0.0.0"
+      STELLAR_PORT: "7000"
+      STELLAR_NAME: "Embedding"
+      STELLAR_NAMESPACE: "production.ml.embedding"
+      GALAXY_HOST: "galaxy"
+      GALAXY_PORT: "9001"
+    depends_on:
+      - galaxy
+
+  client:
+    build:
+      context: ../..
+      dockerfile: samples/demo/Dockerfile
+    command: Client
+    environment:
+      INGRESS_HOST: "ingress"
+      INGRESS_PORT: "2240"
+    depends_on:
+      - stellar

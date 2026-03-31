@@ -18,7 +18,9 @@ private struct PendingStellar {
     let address: SocketAddress
 }
 
-/// Amas that distributes calls across multiple Stellar instances using round-robin.
+/// Amas that manages a pool of Stellar instances with round-robin load balancing.
+/// Used internally by Galaxy — not exposed as a standalone TCP server.
+/// Future: may also manage MessageQueue and other per-namespace features.
 public actor LoadBalanceAmas: Amas {
     public let identifier: UUID
     public let name: String
@@ -29,79 +31,12 @@ public actor LoadBalanceAmas: Amas {
     private var roundRobinIndex: [String: Int] = [:]
 
     public init(name: String, namespace: String, identifier: UUID = UUID()) throws {
-        try Self.validateName(name)
+        guard !name.contains(".") else {
+            throw NebulaError.fail(message: "Amas name must not contain '.': \"\(name)\"")
+        }
         self.identifier = identifier
         self.name = name
         self.namespace = namespace
-    }
-}
-
-// MARK: - NMTServerTarget
-
-extension LoadBalanceAmas: NMTServerTarget {
-
-    public func handle(envelope: Matter) async throws -> Matter? {
-        switch envelope.type {
-        case .register:
-            return try await handleRegister(envelope: envelope)
-        case .find:
-            return try await handleFind(envelope: envelope)
-        case .call:
-            return try await handleCall(envelope: envelope)
-        case .unregister:
-            return try await handleUnregister(envelope: envelope)
-        case .clone:
-            return try makeCloneReply(envelope: envelope)
-        default:
-            return nil
-        }
-    }
-}
-
-// MARK: - Handlers
-
-extension LoadBalanceAmas {
-
-    private func handleRegister(envelope: Matter) async throws -> Matter {
-        let body = try envelope.decodeBody(RegisterBody.self)
-        let address = try SocketAddress.makeAddressResolvingHost(body.host, port: body.port)
-        try await addStellar(namespace: body.namespace, endpoint: address)
-        return try envelope.reply(body: RegisterReplyBody(status: "ok"))
-    }
-
-    private func handleFind(envelope: Matter) async throws -> Matter {
-        let body = try envelope.decodeBody(FindBody.self)
-        let address = try? await allocateStellar(for: body.namespace)
-        let reply = FindReplyBody(
-            stellarHost: address?.ipAddress,
-            stellarPort: address?.port
-        )
-        return try envelope.reply(body: reply)
-    }
-
-    private func handleCall(envelope: Matter) async throws -> Matter {
-        let body = try envelope.decodeBody(CallBody.self)
-        let conn = try await nextConnection(for: body.namespace)
-        let forwardMatter = try Matter.make(type: .call, body: body)
-        let reply = try await conn.client.request(envelope: forwardMatter)
-        return Matter(type: .reply, messageID: envelope.messageID, body: reply.body)
-    }
-
-    private func handleUnregister(envelope: Matter) async throws -> Matter {
-        let body = try envelope.decodeBody(UnregisterBody.self)
-        removeStellar(namespace: body.namespace, host: body.host, port: body.port)
-        let next = try? await allocateStellar(for: body.namespace)
-        let reply = UnregisterReplyBody(nextHost: next?.ipAddress, nextPort: next?.port)
-        return try envelope.reply(body: reply)
-    }
-
-    private func makeCloneReply(envelope: Matter) throws -> Matter {
-        let reply = CloneReplyBody(
-            identifier: identifier.uuidString,
-            name: name,
-            category: AstralCategory.amas.rawValue
-        )
-        return try envelope.reply(body: reply)
     }
 }
 
@@ -109,7 +44,7 @@ extension LoadBalanceAmas {
 
 extension LoadBalanceAmas {
 
-    /// Add a Stellar to the pool (called by Galaxy or via NMT register message).
+    /// Add a Stellar to the pool.
     public func addStellar(namespace: String, endpoint: SocketAddress) async throws {
         let pending = PendingStellar(
             task: Task { try await NMTClient.connect(to: endpoint, as: .stellar) },
@@ -118,8 +53,7 @@ extension LoadBalanceAmas {
         pendingConnections[namespace, default: []].append(pending)
     }
 
-    /// Returns the next Stellar address via round-robin (advances the counter).
-    /// Called by Galaxy when responding to a Planet's `find` request.
+    /// Returns the next Stellar address via round-robin.
     func allocateStellar(for namespace: String) async throws -> SocketAddress {
         let pool = try await resolvedPool(for: namespace)
         let index = advance(namespace: namespace, poolCount: pool.count)
@@ -127,21 +61,14 @@ extension LoadBalanceAmas {
     }
 
     /// Remove a Stellar from the pool (e.g. when Planet reports it as dead).
-    private func removeStellar(namespace: String, host: String, port: Int) {
+    func removeStellar(namespace: String, host: String, port: Int) {
         stellarPools[namespace]?.removeAll { $0.address.ipAddress == host && $0.address.port == port }
         pendingConnections[namespace]?.removeAll { $0.address.ipAddress == host && $0.address.port == port }
-        // Keep round-robin index in bounds
         if let pool = stellarPools[namespace], !pool.isEmpty {
             roundRobinIndex[namespace] = (roundRobinIndex[namespace] ?? 0) % pool.count
         } else {
             roundRobinIndex.removeValue(forKey: namespace)
         }
-    }
-
-    private func nextConnection(for namespace: String) async throws -> StellarConnection {
-        let pool = try await resolvedPool(for: namespace)
-        let index = advance(namespace: namespace, poolCount: pool.count)
-        return pool[index]
     }
 
     private func resolvedPool(for namespace: String) async throws -> [StellarConnection] {

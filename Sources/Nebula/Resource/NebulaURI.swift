@@ -33,7 +33,7 @@ public struct NebulaURI: Sendable {
     /// The service namespace in forward order (e.g. `production.ml.embedding`).
     public let namespace: String
 
-    /// Galaxy name — first dot-separated segment of namespace.
+    /// Ingress name — first dot-separated segment of namespace.
     /// e.g. `"production"` from `"production.ml.embedding"`.
     public var galaxyName: String {
         String(namespace.split(separator: ".").first ?? Substring(namespace))

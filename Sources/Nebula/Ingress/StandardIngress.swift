@@ -8,23 +8,22 @@
 import Foundation
 import NIO
 
-/// The root Discovery node for the Nebula network.
+/// The root entry point for the Nebula network.
 ///
-/// Ingress is the single entry point that Planet connects to.
+/// Ingress is a Galaxy routing table — it knows which Galaxy lives where.
 /// Galaxies register themselves with Ingress on startup.
-/// When Planet sends a `find`, Ingress routes to the appropriate Galaxy
-/// based on the first segment of the namespace (the Galaxy name).
+/// When Planet sends a `find` or `unregister`, Ingress routes to the appropriate Galaxy.
 ///
-/// Default port: 22400
+/// Default port: 2240
 public actor StandardIngress {
-    public static let defaultPort: Int = 22400
+    public static let defaultPort: Int = 2240
 
     public let identifier: UUID
     public let name: String
 
     /// Galaxy name → address mapping.
     private var galaxyRegistry: [String: SocketAddress] = [:]
-    /// Cached NMTClients to Galaxies for forwarding find requests.
+    /// Cached NMTClients to Galaxies.
     private var galaxyClients: [String: NMTClient<GalaxyTarget>] = [:]
 
     public init(name: String = "ingress", identifier: UUID = UUID()) {
@@ -40,9 +39,11 @@ extension StandardIngress: NMTServerTarget {
     public func handle(envelope: Matter) async throws -> Matter? {
         switch envelope.type {
         case .register:
-            return try await handleRegister(envelope: envelope)
+            return try handleRegister(envelope: envelope)
         case .find:
             return try await handleFind(envelope: envelope)
+        case .unregister:
+            return try await handleUnregister(envelope: envelope)
         case .clone:
             return try makeCloneReply(envelope: envelope)
         default:
@@ -56,15 +57,14 @@ extension StandardIngress: NMTServerTarget {
 extension StandardIngress {
 
     /// Handle Galaxy registration: Galaxy sends its name and address.
-    private func handleRegister(envelope: Matter) async throws -> Matter {
+    private func handleRegister(envelope: Matter) throws -> Matter {
         let body = try envelope.decodeBody(RegisterBody.self)
         let address = try SocketAddress.makeAddressResolvingHost(body.host, port: body.port)
         galaxyRegistry[body.namespace] = address
         return try envelope.reply(body: RegisterReplyBody(status: "ok"))
     }
 
-    /// Handle find from Planet: extract Galaxy name (first namespace segment),
-    /// forward to the appropriate Galaxy, relay the response.
+    /// Handle find from Planet: extract Galaxy name, forward to Galaxy, relay response.
     private func handleFind(envelope: Matter) async throws -> Matter {
         let body = try envelope.decodeBody(FindBody.self)
         let galaxyName = String(body.namespace.split(separator: ".").first ?? Substring(body.namespace))
@@ -77,6 +77,22 @@ extension StandardIngress {
         let findEnvelope = try Matter.make(type: .find, body: body)
         let galaxyReply = try await client.request(envelope: findEnvelope)
         let replyBody = try galaxyReply.decodeBody(FindReplyBody.self)
+        return try envelope.reply(body: replyBody)
+    }
+
+    /// Handle unregister from Planet (failover): forward to Galaxy.
+    private func handleUnregister(envelope: Matter) async throws -> Matter {
+        let body = try envelope.decodeBody(UnregisterBody.self)
+        let galaxyName = String(body.namespace.split(separator: ".").first ?? Substring(body.namespace))
+
+        guard let galaxyAddress = galaxyRegistry[galaxyName] else {
+            return try envelope.reply(body: UnregisterReplyBody())
+        }
+
+        let client = try await galaxyClient(for: galaxyName, at: galaxyAddress)
+        let unregEnvelope = try Matter.make(type: .unregister, body: body)
+        let galaxyReply = try await client.request(envelope: unregEnvelope)
+        let replyBody = try galaxyReply.decodeBody(UnregisterReplyBody.self)
         return try envelope.reply(body: replyBody)
     }
 

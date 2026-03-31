@@ -9,18 +9,19 @@ import Foundation
 import NIO
 
 public actor StandardGalaxy: Galaxy {
+    public static let defaultPort: Int = 2240
+
     public let identifier: UUID
     public let name: String
-    public let registry: any ServiceRegistry
 
-    /// Internally managed LoadBalanceAmas instances keyed by namespace.
-    private var managedAmas: [String: ManagedAmasEntry] = [:]
+    /// Internally managed Amas instances keyed by namespace.
+    /// Amas handles load balancing, pool management, and future features (e.g. MessageQueue).
+    private var managedAmas: [String: LoadBalanceAmas] = [:]
 
-    public init(name: String, identifier: UUID = UUID(), registry: (any ServiceRegistry)? = nil) throws {
+    public init(name: String, identifier: UUID = UUID()) throws {
         try Self.validateName(name)
         self.identifier = identifier
         self.name = name
-        self.registry = registry ?? InMemoryServiceRegistry()
     }
 }
 
@@ -34,6 +35,8 @@ extension StandardGalaxy: NMTServerTarget {
             return try await handleRegister(envelope: envelope)
         case .find:
             return try await handleFind(envelope: envelope)
+        case .unregister:
+            return try await handleUnregister(envelope: envelope)
         case .clone:
             return try makeCloneReply(envelope: envelope)
         default:
@@ -46,36 +49,44 @@ extension StandardGalaxy: NMTServerTarget {
 
 extension StandardGalaxy {
 
+    /// Handle Stellar registration: delegate to Amas (auto-created per namespace).
     private func handleRegister(envelope: Matter) async throws -> Matter {
         let body = try envelope.decodeBody(RegisterBody.self)
         let address = try SocketAddress.makeAddressResolvingHost(body.host, port: body.port)
-        try await registry.register(namespace: body.namespace, address: address)
+        let amas = try amasFor(namespace: body.namespace)
+        try await amas.addStellar(namespace: body.namespace, endpoint: address)
         return try envelope.reply(body: RegisterReplyBody(status: "ok"))
     }
 
+    /// Handle find: delegate round-robin allocation to Amas.
     private func handleFind(envelope: Matter) async throws -> Matter {
         let body = try envelope.decodeBody(FindBody.self)
 
-        // If there's a managed Amas for this namespace, return Stellar + Amas addresses
-        if let entry = managedAmas[body.namespace] {
-            let stellarAddress = try await entry.allocateStellar(for: body.namespace)
-            let amasAddress = entry.server.address
-            let reply = FindReplyBody(
-                stellarHost: stellarAddress.ipAddress,
-                stellarPort: stellarAddress.port,
-                amasHost: amasAddress.ipAddress,
-                amasPort: amasAddress.port
-            )
-            return try envelope.reply(body: reply)
+        guard let amas = managedAmas[body.namespace] else {
+            return try envelope.reply(body: FindReplyBody())
         }
 
-        // Fall back: direct Stellar registered without Amas
-        let address = try await registry.find(namespace: body.namespace)
-        let reply = FindReplyBody(
-            stellarHost: address?.ipAddress,
-            stellarPort: address?.port
-        )
-        return try envelope.reply(body: reply)
+        let address = try await amas.allocateStellar(for: body.namespace)
+        return try envelope.reply(body: FindReplyBody(
+            stellarHost: address.ipAddress,
+            stellarPort: address.port
+        ))
+    }
+
+    /// Handle unregister (failover): delegate to Amas, return next Stellar.
+    private func handleUnregister(envelope: Matter) async throws -> Matter {
+        let body = try envelope.decodeBody(UnregisterBody.self)
+
+        guard let amas = managedAmas[body.namespace] else {
+            return try envelope.reply(body: UnregisterReplyBody())
+        }
+
+        await amas.removeStellar(namespace: body.namespace, host: body.host, port: body.port)
+        let next = try? await amas.allocateStellar(for: body.namespace)
+        return try envelope.reply(body: UnregisterReplyBody(
+            nextHost: next?.ipAddress,
+            nextPort: next?.port
+        ))
     }
 
     private func makeCloneReply(envelope: Matter) throws -> Matter {
@@ -88,39 +99,30 @@ extension StandardGalaxy {
     }
 }
 
-// MARK: - Galaxy Protocol: Managed Amas Registration
+// MARK: - Amas Management
 
 extension StandardGalaxy {
 
-    public func register(namespace: String, stellarEndpoint: SocketAddress) async throws {
-        if let entry = managedAmas[namespace] {
-            try await entry.addStellar(namespace: namespace, endpoint: stellarEndpoint)
-        } else {
-            let segments = namespace.split(separator: ".")
-            let amasName = segments.count > 1 ? String(segments[1]) : namespace
-            let amas = try LoadBalanceAmas(name: amasName, namespace: namespace)
-            let server = try await NMTServer.bind(
-                on: SocketAddress(ipAddress: "::1", port: 0),
-                target: amas
-            )
-            let entry = ManagedAmasEntry(amas: amas, server: server)
-            managedAmas[namespace] = entry
-            try await entry.addStellar(namespace: namespace, endpoint: stellarEndpoint)
+    /// Get or create an Amas for the given namespace.
+    private func amasFor(namespace: String) throws -> LoadBalanceAmas {
+        if let existing = managedAmas[namespace] {
+            return existing
         }
+        let segments = namespace.split(separator: ".")
+        let amasName = segments.count > 1 ? String(segments[1]) : namespace
+        let amas = try LoadBalanceAmas(name: amasName, namespace: namespace)
+        managedAmas[namespace] = amas
+        return amas
     }
 }
 
-// MARK: - ManagedAmasEntry
+// MARK: - Programmatic Registration
 
-private struct ManagedAmasEntry {
-    let amas: LoadBalanceAmas
-    let server: NMTServer<LoadBalanceAmas>
+extension StandardGalaxy {
 
-    func addStellar(namespace: String, endpoint: SocketAddress) async throws {
-        try await amas.addStellar(namespace: namespace, endpoint: endpoint)
-    }
-
-    func allocateStellar(for namespace: String) async throws -> SocketAddress {
-        return try await amas.allocateStellar(for: namespace)
+    /// Register a Stellar endpoint under a namespace (server-side, in-process).
+    public func register(namespace: String, stellarEndpoint: SocketAddress) async throws {
+        let amas = try amasFor(namespace: namespace)
+        try await amas.addStellar(namespace: namespace, endpoint: stellarEndpoint)
     }
 }

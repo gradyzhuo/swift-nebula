@@ -12,24 +12,39 @@ let package = Package(
     ],
     targets: [
         .executableTarget(
-            name: "Server",
+            name: "Ingress",
+            dependencies: [
+                .product(name: "Nebula", package: "swift-nebula"),
+                .product(name: "NebulaServiceLifecycle", package: "swift-nebula"),
+                .product(name: "ServiceLifecycle", package: "swift-service-lifecycle"),
+                .product(name: "Logging", package: "swift-log"),
+            ]
+        ),
+        .executableTarget(
+            name: "Galaxy",
+            dependencies: [
+                .product(name: "Nebula", package: "swift-nebula"),
+                .product(name: "NebulaServiceLifecycle", package: "swift-nebula"),
+                .product(name: "ServiceLifecycle", package: "swift-service-lifecycle"),
+                .product(name: "Logging", package: "swift-log"),
+            ]
+        ),
+        .executableTarget(
+            name: "Stellar",
             dependencies: [
                 .product(name: "Nebula", package: "swift-nebula"),
                 .product(name: "NebulaServiceLifecycle", package: "swift-nebula"),
                 .product(name: "ServiceLifecycle", package: "swift-service-lifecycle"),
                 .product(name: "Logging", package: "swift-log"),
                 .product(name: "MessagePacker", package: "MessagePacker"),
-            ],
+            ]
         ),
         .executableTarget(
             name: "Client",
             dependencies: [
                 .product(name: "Nebula", package: "swift-nebula"),
-                .product(name: "NebulaServiceLifecycle", package: "swift-nebula"),
-                .product(name: "ServiceLifecycle", package: "swift-service-lifecycle"),
-                .product(name: "Logging", package: "swift-log"),
                 .product(name: "MessagePacker", package: "MessagePacker"),
-            ],
-        )
+            ]
+        ),
     ]
 )

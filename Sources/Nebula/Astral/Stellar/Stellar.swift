@@ -19,6 +19,20 @@ extension Stellar {
 public typealias ServiceVersion = String
 
 /// A Stellar that hosts named Services.
+///
+/// Middlewares are stacked via ``use(_:)`` before the server starts.
+/// Each call to `use()` wraps the current chain from the outside, so the
+/// **last-registered middleware runs outermost** (first to receive each envelope).
+///
+/// ```swift
+/// let stellar = try ServiceStellar(name: "account", namespace: "production.mendesky")
+///     .use(LoggingMiddleware())      // inner — runs second
+///     .use(LDAPAuthMiddleware(...))  // outer — runs first
+///     .add(service: accountService)
+/// ```
+///
+/// The composed chain is stored directly as a closure; no rebuild happens on
+/// the hot path.
 open class ServiceStellar: @unchecked Sendable, Stellar {
     public let identifier: UUID
     public let name: String
@@ -26,11 +40,27 @@ open class ServiceStellar: @unchecked Sendable, Stellar {
 
     public internal(set) var availableServices: [ServiceVersion: Service] = [:]
 
+    /// The composed middleware chain. `nil` means no middleware has been
+    /// registered; `handle` falls through directly to `coreDispatch`.
+    /// Each `use(_:)` call wraps this closure with one new outer layer.
+    private var chain: NMTMiddlewareNext?
+
     public init(name: String, namespace: String, identifier: UUID = UUID()) throws {
         try Self.validateName(name)
         self.identifier = identifier
         self.name = name
         self.namespace = namespace
+    }
+
+    /// Wraps the current chain with `middleware` as a new outer layer.
+    /// Must be called during setup, before the server starts serving.
+    @discardableResult
+    public func use(_ middleware: any NMTMiddleware) -> Self {
+        let inner: NMTMiddlewareNext = chain ?? { [unowned self] envelope in
+            try await self.coreDispatch(envelope: envelope)
+        }
+        chain = { envelope in try await middleware.handle(envelope, next: inner) }
+        return self
     }
 
     @discardableResult
@@ -45,6 +75,18 @@ open class ServiceStellar: @unchecked Sendable, Stellar {
 extension ServiceStellar: NMTServerTarget {
 
     public func handle(envelope: Matter) async throws -> Matter? {
+        if let chain {
+            return try await chain(envelope)
+        }
+        return try await coreDispatch(envelope: envelope)
+    }
+}
+
+// MARK: - Core dispatch (no middleware)
+
+extension ServiceStellar {
+
+    private func coreDispatch(envelope: Matter) async throws -> Matter? {
         switch envelope.type {
         case .call:
             return try await handleCall(envelope: envelope)
@@ -54,11 +96,6 @@ extension ServiceStellar: NMTServerTarget {
             return nil
         }
     }
-}
-
-// MARK: - Handlers
-
-extension ServiceStellar {
 
     private func handleCall(envelope: Matter) async throws -> Matter {
         let body = try envelope.decodeBody(CallBody.self)
