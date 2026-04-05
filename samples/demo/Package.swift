@@ -3,7 +3,7 @@ import PackageDescription
 
 let package = Package(
     name: "nebula-demo",
-    platforms: [.macOS(.v13)],
+    platforms: [.macOS(.v15)],
     dependencies: [
         .package(path: "../.."),
         .package(url: "https://github.com/OffskyLab/swift-nmtp.git", from: "0.0.1"),
