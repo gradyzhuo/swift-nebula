@@ -1,6 +1,6 @@
 import Foundation
 import Nebula
-import NebulaServiceLifecycle
+import NebulaServerSupport
 import NIO
 import ServiceLifecycle
 import Logging
@@ -20,18 +20,15 @@ let ingressPort = Int(ProcessInfo.processInfo.environment["INGRESS_PORT"] ?? "62
 
 // Bind Galaxy
 let galaxy = try StandardGalaxy(name: galaxyName)
-let galaxyServer = try await Nebula.server(with: galaxy)
-    .bind(on: SocketAddress(ipAddress: galaxyHost, port: galaxyPort))
+let galaxyServer = try await Nebula.bind(galaxy, on: SocketAddress(ipAddress: galaxyHost, port: galaxyPort))
 
 // Register with Ingress using the advertised host so Ingress can reach us.
 let advertiseAddress = try SocketAddress.makeAddressResolvingHost(
     galaxyAdvertiseHost, port: galaxyServer.address.port ?? galaxyPort
 )
-let ingressClient = try await NMTClient.connect(
-    to: try SocketAddress.makeAddressResolvingHost(ingressHost, port: ingressPort),
-    as: .ingress
+let ingressClient = try await IngressClient.connect(
+    to: try SocketAddress.makeAddressResolvingHost(ingressHost, port: ingressPort)
 )
-
 try await ingressClient.registerGalaxy(
     name: galaxyName,
     address: advertiseAddress,

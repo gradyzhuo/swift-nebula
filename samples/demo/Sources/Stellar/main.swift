@@ -1,6 +1,6 @@
 import Foundation
 import Nebula
-import NebulaServiceLifecycle
+import NebulaServerSupport
 import NIO
 import ServiceLifecycle
 import Logging
@@ -13,6 +13,9 @@ let stellarHost = ProcessInfo.processInfo.environment["STELLAR_HOST"] ?? "0.0.0.
 let stellarPort = Int(ProcessInfo.processInfo.environment["STELLAR_PORT"] ?? "62300")!
 let stellarName = ProcessInfo.processInfo.environment["STELLAR_NAME"] ?? "Embedding"
 let namespace = ProcessInfo.processInfo.environment["STELLAR_NAMESPACE"] ?? "production.ml.embedding"
+
+let ingressHost = ProcessInfo.processInfo.environment["INGRESS_HOST"] ?? "127.0.0.1"
+let ingressPort = Int(ProcessInfo.processInfo.environment["INGRESS_PORT"] ?? "6224")!
 
 let galaxyHost = ProcessInfo.processInfo.environment["GALAXY_HOST"] ?? "127.0.0.1"
 let galaxyPort = Int(ProcessInfo.processInfo.environment["GALAXY_PORT"] ?? "62200")!
@@ -29,13 +32,11 @@ w2v.add(method: "wordVector") { args in
 stellar.add(service: w2v)
 
 // Bind Stellar
-let stellarServer = try await Nebula.server(with: stellar)
-    .bind(on: SocketAddress(ipAddress: stellarHost, port: stellarPort))
+let stellarServer = try await Nebula.bind(stellar, on: SocketAddress(ipAddress: stellarHost, port: stellarPort))
 
 // Register with Galaxy
-let galaxyClient = try await NMTClient.connect(
-    to: try SocketAddress.makeAddressResolvingHost(galaxyHost, port: galaxyPort),
-    as: .galaxy
+let galaxyClient = try await GalaxyClient.connect(
+    to: try SocketAddress.makeAddressResolvingHost(galaxyHost, port: galaxyPort)
 )
 try await galaxyClient.register(astral: stellar, listeningOn: stellarServer.address)
 

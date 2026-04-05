@@ -7,6 +7,7 @@
 
 import Foundation
 import NIO
+import NMTP
 
 public enum AstralCategory: UInt8, Sendable {
     case planet    = 1

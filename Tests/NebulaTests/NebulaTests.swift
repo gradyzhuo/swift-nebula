@@ -1,6 +1,7 @@
 import Testing
 import Foundation
 import NIO
+import NMTP
 @testable import Nebula
 
 // MARK: - Test Support
@@ -16,9 +17,9 @@ struct TrackingMiddleware: NMTMiddleware {
     let label: String
     let log: CallLog
 
-    func handle(_ envelope: Matter, next: NMTMiddlewareNext) async throws -> Matter? {
+    func handle(_ matter: Matter, next: NMTMiddlewareNext) async throws -> Matter? {
         await log.record("\(label):in")
-        let result = try await next(envelope)
+        let result = try await next(matter)
         await log.record("\(label):out")
         return result
     }
@@ -26,14 +27,9 @@ struct TrackingMiddleware: NMTMiddleware {
 
 /// Middleware that never calls next — simulates an auth gate that blocks the request.
 struct ShortCircuitMiddleware: NMTMiddleware {
-    func handle(_ envelope: Matter, next: NMTMiddlewareNext) async throws -> Matter? {
+    func handle(_ matter: Matter, next: NMTMiddlewareNext) async throws -> Matter? {
         return nil
     }
-}
-
-actor Counter {
-    var value = 0
-    func increment() -> Int { value += 1; return value }
 }
 
 private func loopbackPort0() throws -> SocketAddress {
@@ -57,15 +53,15 @@ struct NMTMiddlewareChainTests {
         return stellar
     }
 
-    private func callEnvelope() throws -> Matter {
+    private func callMatter() throws -> Matter {
         let body = CallBody(namespace: "test.echo", service: "echo", method: "ping", arguments: [])
         return try Matter.make(type: .call, body: body)
     }
 
-    /// With no middleware, a call envelope is dispatched directly to coreDispatch.
+    /// With no middleware, a call matter is dispatched directly to coreDispatch.
     @Test func noMiddleware_callReachesCore() async throws {
         let stellar = try echoStellar()
-        let reply = try await stellar.handle(envelope: try callEnvelope(), channel: dummyChannel())
+        let reply = try await stellar.handle(matter: try callMatter(), channel: dummyChannel())
         let body = try #require(reply).decodeBody(CallReplyBody.self)
         #expect(body.error == nil)
         #expect(body.result != nil)
@@ -79,7 +75,7 @@ struct NMTMiddlewareChainTests {
         stellar
             .use(TrackingMiddleware(label: "A", log: log))
             .use(TrackingMiddleware(label: "B", log: log))
-        _ = try await stellar.handle(envelope: try callEnvelope(), channel: dummyChannel())
+        _ = try await stellar.handle(matter: try callMatter(), channel: dummyChannel())
         let entries = await log.entries
         #expect(entries == ["B:in", "A:in", "A:out", "B:out"])
     }
@@ -91,17 +87,17 @@ struct NMTMiddlewareChainTests {
         stellar
             .use(TrackingMiddleware(label: "A", log: log))
             .use(ShortCircuitMiddleware())
-        _ = try await stellar.handle(envelope: try callEnvelope(), channel: dummyChannel())
+        _ = try await stellar.handle(matter: try callMatter(), channel: dummyChannel())
         #expect(await log.entries.isEmpty)
     }
 
-    /// Non-call envelopes (clone) pass through the middleware chain and are handled by coreDispatch.
-    @Test func nonCallEnvelope_cloneHandledByCore() async throws {
+    /// Non-call matters (clone) pass through the middleware chain and are handled by coreDispatch.
+    @Test func nonCallMatter_cloneHandledByCore() async throws {
         let log = CallLog()
         let stellar = try echoStellar()
         stellar.use(TrackingMiddleware(label: "A", log: log))
-        let cloneEnvelope = try Matter.make(type: .clone, body: CloneBody())
-        let reply = try await stellar.handle(envelope: cloneEnvelope, channel: dummyChannel())
+        let cloneMatter = try Matter.make(type: .clone, body: CloneBody())
+        let reply = try await stellar.handle(matter: cloneMatter, channel: dummyChannel())
         let body = try #require(reply).decodeBody(CloneReplyBody.self)
         #expect(body.name == "echo")
         #expect(await log.entries == ["A:in", "A:out"])
@@ -113,18 +109,18 @@ struct NMTMiddlewareChainTests {
 @Suite("Ingress Routing")
 struct IngressRoutingTests {
 
-    private func bindEchoStellar(namespace: String) async throws -> NMTServer<ServiceStellar> {
+    private func bindEchoStellar(namespace: String) async throws -> NMTServer {
         let stellar = try ServiceStellar(name: "echo", namespace: namespace)
         let svc = Service(name: "echo")
         svc.add(method: "ping") { _ in Data([1]) }
         stellar.add(service: svc)
-        return try await NMTServer.bind(on: try loopbackPort0(), target: stellar)
+        return try await NMTServer.bind(on: try loopbackPort0(), handler: stellar)
     }
 
     /// Planet-side `find` via Ingress → Galaxy → Amas returns a Stellar address.
     @Test func find_returnsStellarAddress() async throws {
         let galaxy = try StandardGalaxy(name: "test")
-        let galaxyServer = try await NMTServer.bind(on: try loopbackPort0(), target: galaxy)
+        let galaxyServer = try await NMTServer.bind(on: try loopbackPort0(), handler: galaxy)
         defer { Task { try? await galaxyServer.stop() } }
 
         let stellarServer = try await bindEchoStellar(namespace: "test.echo")
@@ -133,10 +129,10 @@ struct IngressRoutingTests {
         try await galaxy.register(namespace: "test.echo", stellarEndpoint: stellarServer.address)
 
         let ingress = StandardIngress(name: "ingress")
-        let ingressServer = try await NMTServer.bind(on: try loopbackPort0(), target: ingress)
+        let ingressServer = try await NMTServer.bind(on: try loopbackPort0(), handler: ingress)
         defer { Task { try? await ingressServer.stop() } }
 
-        let ingressClient = try await NMTClient.connect(to: ingressServer.address, as: .ingress)
+        let ingressClient = try await IngressClient.connect(to: ingressServer.address)
         try await ingressClient.registerGalaxy(
             name: "test",
             address: galaxyServer.address,
@@ -150,7 +146,7 @@ struct IngressRoutingTests {
     /// `unregister` via Ingress → Galaxy → Amas removes the dead Stellar and returns the next one.
     @Test func unregister_removesDeadStellarAndReturnsNext() async throws {
         let galaxy = try StandardGalaxy(name: "test")
-        let galaxyServer = try await NMTServer.bind(on: try loopbackPort0(), target: galaxy)
+        let galaxyServer = try await NMTServer.bind(on: try loopbackPort0(), handler: galaxy)
         defer { Task { try? await galaxyServer.stop() } }
 
         let stellar1Server = try await bindEchoStellar(namespace: "test.echo")
@@ -162,115 +158,26 @@ struct IngressRoutingTests {
         try await galaxy.register(namespace: "test.echo", stellarEndpoint: stellar2Server.address)
 
         let ingress = StandardIngress(name: "ingress")
-        let ingressServer = try await NMTServer.bind(on: try loopbackPort0(), target: ingress)
+        let ingressServer = try await NMTServer.bind(on: try loopbackPort0(), handler: ingress)
         defer { Task { try? await ingressServer.stop() } }
 
-        let ingressClient = try await NMTClient.connect(to: ingressServer.address, as: .ingress)
+        let ingressClient = try await IngressClient.connect(to: ingressServer.address)
         try await ingressClient.registerGalaxy(
             name: "test",
             address: galaxyServer.address,
             identifier: galaxy.identifier
         )
 
-        // Trigger pool resolution: find returns stellar1 (round-robin index 0).
         let first = try await ingressClient.find(namespace: "test.echo")
         let firstAddr = try #require(first.stellarAddress)
 
-        // Unregister stellar1 (simulating Planet reporting it as dead).
         let next = try await ingressClient.unregister(
             namespace: "test.echo",
             host: firstAddr.ipAddress ?? "127.0.0.1",
             port: firstAddr.port ?? 0
         )
 
-        // Amas should return stellar2 as the next available endpoint.
         let nextAddr = try #require(next.nextAddress)
         #expect(nextAddr != firstAddr)
-    }
-}
-
-// MARK: - Suite 3: Planet End-to-End Call (integration)
-
-@Suite("Planet Call")
-struct PlanetCallTests {
-
-    /// Planet resolves a Stellar address via Ingress and makes a successful call.
-    @Test func call_routesThroughIngressToStellar() async throws {
-        let galaxy = try StandardGalaxy(name: "test")
-        let galaxyServer = try await NMTServer.bind(on: try loopbackPort0(), target: galaxy)
-        defer { Task { try? await galaxyServer.stop() } }
-
-        let stellar = try ServiceStellar(name: "echo", namespace: "test.echo")
-        let svc = Service(name: "echo")
-        svc.add(method: "ping") { _ in Data([1]) }
-        stellar.add(service: svc)
-        let stellarServer = try await NMTServer.bind(on: try loopbackPort0(), target: stellar)
-        defer { Task { try? await stellarServer.stop() } }
-
-        try await galaxy.register(namespace: "test.echo", stellarEndpoint: stellarServer.address)
-
-        let ingress = StandardIngress(name: "ingress")
-        let ingressServer = try await NMTServer.bind(on: try loopbackPort0(), target: ingress)
-        defer { Task { try? await ingressServer.stop() } }
-
-        let ingressClient = try await NMTClient.connect(to: ingressServer.address, as: .ingress)
-        try await ingressClient.registerGalaxy(
-            name: "test",
-            address: galaxyServer.address,
-            identifier: galaxy.identifier
-        )
-
-        let planet = RoguePlanet(
-            ingressClient: ingressClient,
-            namespace: "test.echo",
-            service: "echo"
-        )
-
-        let result = try await planet.call(method: "ping")
-        #expect(result != nil)
-    }
-
-    /// Repeated calls to the same namespace reuse the cached Stellar connection.
-    @Test func call_cachesStellarConnection() async throws {
-        let galaxy = try StandardGalaxy(name: "test")
-        let galaxyServer = try await NMTServer.bind(on: try loopbackPort0(), target: galaxy)
-        defer { Task { try? await galaxyServer.stop() } }
-
-        let counter = Counter()
-        let stellar = try ServiceStellar(name: "echo", namespace: "test.echo")
-        let svc = Service(name: "echo")
-        svc.add(method: "ping") { _ in
-            let n = await counter.increment()
-            return Data([UInt8(n)])
-        }
-        stellar.add(service: svc)
-        let stellarServer = try await NMTServer.bind(on: try loopbackPort0(), target: stellar)
-        defer { Task { try? await stellarServer.stop() } }
-
-        try await galaxy.register(namespace: "test.echo", stellarEndpoint: stellarServer.address)
-
-        let ingress = StandardIngress(name: "ingress")
-        let ingressServer = try await NMTServer.bind(on: try loopbackPort0(), target: ingress)
-        defer { Task { try? await ingressServer.stop() } }
-
-        let ingressClient = try await NMTClient.connect(to: ingressServer.address, as: .ingress)
-        try await ingressClient.registerGalaxy(
-            name: "test",
-            address: galaxyServer.address,
-            identifier: galaxy.identifier
-        )
-
-        let planet = RoguePlanet(
-            ingressClient: ingressClient,
-            namespace: "test.echo",
-            service: "echo"
-        )
-
-        let r1 = try await planet.call(method: "ping")
-        let r2 = try await planet.call(method: "ping")
-        #expect(r1 != nil)
-        #expect(r2 != nil)
-        // Both calls reached the same Stellar (counter incremented twice).
-        #expect(await counter.value == 2)
     }
 }

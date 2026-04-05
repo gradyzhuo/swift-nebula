@@ -7,6 +7,7 @@
 
 import Foundation
 import NIO
+import NMTP
 
 /// An Amas that handles async messaging — MQ and Pub/Sub.
 ///
@@ -56,7 +57,6 @@ public actor BrokerAmas: Amas {
 extension BrokerAmas {
 
     /// Register a subscriber channel under a named subscription group.
-    /// The group is created implicitly on first join.
     func subscribe(subscription: String, channel: Channel) {
         subscriptions[subscription, default: []].append(channel)
     }
@@ -100,12 +100,12 @@ extension BrokerAmas {
                     method: message.method,
                     arguments: message.arguments
                 )
-                let envelope = try Matter.make(
+                let matter = try Matter.make(
                     type: .enqueue,
                     body: body,
                     matterID: message.id
                 )
-                channel.writeAndFlush(envelope, promise: nil)
+                channel.writeAndFlush(matter, promise: nil)
                 pendingAcks[message.id] = PendingAck(
                     message: message,
                     subscription: subscription,

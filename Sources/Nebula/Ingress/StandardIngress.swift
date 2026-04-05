@@ -7,6 +7,7 @@
 
 import Foundation
 import NIO
+import NMTP
 
 /// The root entry point for the Nebula network.
 ///
@@ -14,7 +15,7 @@ import NIO
 /// Galaxies register themselves with Ingress on startup.
 /// When Planet sends a `find` or `unregister`, Ingress routes to the appropriate Galaxy.
 ///
-/// Default port: 2240
+/// Default port: 6224
 public actor StandardIngress {
     public static let defaultPort: Int = 6224
 
@@ -23,8 +24,8 @@ public actor StandardIngress {
 
     /// Galaxy name → address mapping.
     private var galaxyRegistry: [String: SocketAddress] = [:]
-    /// Cached NMTClients to Galaxies.
-    private var galaxyClients: [String: NMTClient<GalaxyTarget>] = [:]
+    /// Cached GalaxyClients keyed by Galaxy name.
+    private var galaxyClients: [String: GalaxyClient] = [:]
 
     public init(name: String = "ingress", identifier: UUID = UUID()) {
         self.identifier = identifier
@@ -36,20 +37,20 @@ public actor StandardIngress {
 
 extension StandardIngress: NMTServerTarget {
 
-    public func handle(envelope: Matter, channel: Channel) async throws -> Matter? {
-        switch envelope.type {
+    public func handle(matter: Matter, channel: Channel) async throws -> Matter? {
+        switch matter.type {
         case .register:
-            return try handleRegister(envelope: envelope)
+            return try handleRegister(envelope: matter)
         case .find:
-            return try await handleFind(envelope: envelope)
+            return try await handleFind(envelope: matter)
         case .unregister:
-            return try await handleUnregister(envelope: envelope)
+            return try await handleUnregister(envelope: matter)
         case .enqueue:
-            return try await handleEnqueue(envelope: envelope)
+            return try await handleEnqueue(envelope: matter)
         case .findGalaxy:
-            return try handleFindGalaxy(envelope: envelope)
+            return try handleFindGalaxy(envelope: matter)
         case .clone:
-            return try makeCloneReply(envelope: envelope)
+            return try makeCloneReply(envelope: matter)
         default:
             return nil
         }
@@ -78,8 +79,8 @@ extension StandardIngress {
         }
 
         let client = try await galaxyClient(for: galaxyName, at: galaxyAddress)
-        let findEnvelope = try Matter.make(type: .find, body: body)
-        let galaxyReply = try await client.request(envelope: findEnvelope)
+        let findMatter = try Matter.make(type: .find, body: body)
+        let galaxyReply = try await client.request(matter: findMatter)
         let replyBody = try galaxyReply.decodeBody(FindReplyBody.self)
         return try envelope.reply(body: replyBody)
     }
@@ -94,8 +95,8 @@ extension StandardIngress {
         }
 
         let client = try await galaxyClient(for: galaxyName, at: galaxyAddress)
-        let unregEnvelope = try Matter.make(type: .unregister, body: body)
-        let galaxyReply = try await client.request(envelope: unregEnvelope)
+        let unregMatter = try Matter.make(type: .unregister, body: body)
+        let galaxyReply = try await client.request(matter: unregMatter)
         let replyBody = try galaxyReply.decodeBody(UnregisterReplyBody.self)
         return try envelope.reply(body: replyBody)
     }
@@ -110,8 +111,8 @@ extension StandardIngress {
         }
 
         let client = try await galaxyClient(for: galaxyName, at: galaxyAddress)
-        let enqueueEnvelope = try Matter.make(type: .enqueue, body: body)
-        let galaxyReply = try await client.request(envelope: enqueueEnvelope)
+        let enqueueMatter = try Matter.make(type: .enqueue, body: body)
+        let galaxyReply = try await client.request(matter: enqueueMatter)
         let replyBody = try galaxyReply.decodeBody(RegisterReplyBody.self)
         return try envelope.reply(body: replyBody)
     }
@@ -147,11 +148,11 @@ extension StandardIngress {
     private func galaxyClient(
         for name: String,
         at address: SocketAddress
-    ) async throws -> NMTClient<GalaxyTarget> {
-        if let existing = galaxyClients[name], existing.targetAddress == address {
+    ) async throws -> GalaxyClient {
+        if let existing = galaxyClients[name], existing.address == address {
             return existing
         }
-        let client = try await NMTClient.connect(to: address, as: .galaxy)
+        let client = try await GalaxyClient.connect(to: address)
         galaxyClients[name] = client
         return client
     }

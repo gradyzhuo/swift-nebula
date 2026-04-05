@@ -1,6 +1,6 @@
 import Foundation
 import NIO
-import Nebula
+import NebulaClient
 
 // Satellite Demo — broker subscriber
 //
@@ -15,7 +15,7 @@ let ingressHost = ProcessInfo.processInfo.environment["INGRESS_HOST"] ?? "127.0.
 let ingressPort = Int(ProcessInfo.processInfo.environment["INGRESS_PORT"] ?? "6224")!
 
 let ingressAddress = try SocketAddress.makeAddressResolvingHost(ingressHost, port: ingressPort)
-let ingressClient = try await NMTClient.connect(to: ingressAddress, as: .ingress)
+let ingressClient = try await IngressClient.connect(to: ingressAddress)
 
 print("[Subscriber] Connecting to Ingress ...")
 print("[Subscriber] Finding Galaxy for production.orders ...")

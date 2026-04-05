@@ -7,6 +7,7 @@
 
 import Foundation
 import NIO
+import NMTP
 
 public actor StandardGalaxy: Galaxy {
     public static let defaultPort: Int = 62200
@@ -45,31 +46,31 @@ public actor StandardGalaxy: Galaxy {
 
 extension StandardGalaxy: NMTServerTarget {
 
-    public func handle(envelope: Matter, channel: Channel) async throws -> Matter? {
-        switch envelope.type {
+    public func handle(matter: Matter, channel: Channel) async throws -> Matter? {
+        switch matter.type {
         case .register:
-            return try await handleRegister(envelope: envelope)
+            return try await handleRegister(envelope: matter)
         case .find:
-            return try await handleFind(envelope: envelope)
+            return try await handleFind(envelope: matter)
         case .unregister:
-            return try await handleUnregister(envelope: envelope)
+            return try await handleUnregister(envelope: matter)
         case .clone:
-            return try makeCloneReply(envelope: envelope)
+            return try makeCloneReply(envelope: matter)
         case .enqueue:
-            return try await handleEnqueue(envelope: envelope)
+            return try await handleEnqueue(envelope: matter)
         case .ack:
-            return try await handleAck(envelope: envelope)
+            return try await handleAck(envelope: matter)
         case .subscribe:
-            return try await handleSubscribe(envelope: envelope, channel: channel)
+            return try await handleSubscribe(envelope: matter, channel: channel)
         case .unsubscribe:
-            return try await handleUnsubscribe(envelope: envelope, channel: channel)
+            return try await handleUnsubscribe(envelope: matter, channel: channel)
         default:
             return nil
         }
     }
 }
 
-// MARK: - RPC Handlers (unchanged)
+// MARK: - RPC Handlers
 
 extension StandardGalaxy {
 
@@ -141,7 +142,6 @@ extension StandardGalaxy {
     private func handleAck(envelope: Matter) async throws -> Matter? {
         let body = try envelope.decodeBody(AckBody.self)
         guard let matterID = UUID(uuidString: body.matterID) else { return nil }
-        // Find the BrokerAmas that owns this message (search all brokers)
         for broker in managedBrokerAmas.values {
             await broker.acknowledge(matterID: matterID)
         }

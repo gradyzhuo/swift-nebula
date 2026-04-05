@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import NMTP
 
 public typealias MethodAction = @Sendable (_ args: [Argument]) async throws -> Data?
 

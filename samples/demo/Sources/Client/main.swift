@@ -1,5 +1,5 @@
 import Foundation
-import Nebula
+import NebulaClient
 
 let ingressHost = ProcessInfo.processInfo.environment["INGRESS_HOST"] ?? "127.0.0.1"
 let ingressPort = ProcessInfo.processInfo.environment["INGRESS_PORT"] ?? "6224"
@@ -9,7 +9,7 @@ struct VectorResult: Decodable {
 }
 
 print("[Client] Connecting to Ingress \(ingressHost):\(ingressPort) ...")
-let planet = try await Nebula.planet(
+let planet = try await NebulaClient.planet(
     connecting: "nmtp://\(ingressHost):\(ingressPort)/production/ml/embedding",
     service: "w2v"
 )

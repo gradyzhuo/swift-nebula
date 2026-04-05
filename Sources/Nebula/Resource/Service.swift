@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import NMTP
 
 public class Service: @unchecked Sendable {
     public let name: String

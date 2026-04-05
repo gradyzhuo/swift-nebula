@@ -7,20 +7,20 @@
 
 import Foundation
 import NIO
+import NMTP
 
 private struct StellarConnection {
-    let client: NMTClient<StellarTarget>
+    let client: StellarClient
     let address: SocketAddress
 }
 
 private struct PendingStellar {
-    let task: Task<NMTClient<StellarTarget>, Error>
+    let task: Task<StellarClient, Error>
     let address: SocketAddress
 }
 
 /// Amas that manages a pool of Stellar instances with round-robin load balancing.
 /// Used internally by Galaxy — not exposed as a standalone TCP server.
-/// Future: may also manage MessageQueue and other per-namespace features.
 public actor LoadBalanceAmas: Amas {
     public let identifier: UUID
     public let name: String
@@ -47,7 +47,7 @@ extension LoadBalanceAmas {
     /// Add a Stellar to the pool.
     public func addStellar(namespace: String, endpoint: SocketAddress) async throws {
         let pending = PendingStellar(
-            task: Task { try await NMTClient.connect(to: endpoint, as: .stellar) },
+            task: Task { try await StellarClient.connect(to: endpoint) },
             address: endpoint
         )
         pendingConnections[namespace, default: []].append(pending)

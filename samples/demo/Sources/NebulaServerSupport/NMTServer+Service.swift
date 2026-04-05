@@ -1,12 +1,5 @@
-//
-//  NMTServer+Service.swift
-//
-//
-//  Created by Grady Zhuo on 2026/3/23.
-//
-
 import Logging
-import Nebula
+import NMTP
 import ServiceLifecycle
 
 extension NMTServer: ServiceLifecycle.Service {

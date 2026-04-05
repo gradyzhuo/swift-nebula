@@ -1,6 +1,6 @@
 import Foundation
 import NIO
-import Nebula
+import NebulaClient
 
 // Comet Demo — async producer
 //
@@ -14,7 +14,7 @@ let ingressHost = ProcessInfo.processInfo.environment["INGRESS_HOST"] ?? "127.0.
 let ingressPort = Int(ProcessInfo.processInfo.environment["INGRESS_PORT"] ?? "6224")!
 
 let ingressAddress = try SocketAddress.makeAddressResolvingHost(ingressHost, port: ingressPort)
-let ingressClient = try await NMTClient.connect(to: ingressAddress, as: .ingress)
+let ingressClient = try await IngressClient.connect(to: ingressAddress)
 
 let comet = Comet(
     ingressClient: ingressClient,

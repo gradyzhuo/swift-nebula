@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import NMTP
 
 public struct QueuedMatter: Codable, Sendable {
     /// Matches `Matter.matterID` — used for deduplication on retry.
