@@ -6,8 +6,8 @@ let package = Package(
     platforms: [.macOS(.v13)],
     dependencies: [
         .package(path: "../.."),
-        .package(path: "../../../swift-nmtp"),
-        .package(path: "../../../swift-nebula-client"),
+        .package(url: "https://github.com/OffskyLab/swift-nmtp.git", from: "0.0.1"),
+        .package(url: "https://github.com/OffskyLab/swift-nebula-client.git", from: "0.0.1"),
         .package(url: "https://github.com/swift-server/swift-service-lifecycle.git", from: "2.0.0"),
         .package(url: "https://github.com/apple/swift-log.git", from: "1.0.0"),
         .package(url: "https://github.com/hirotakan/MessagePacker.git", from: "0.4.0"),
