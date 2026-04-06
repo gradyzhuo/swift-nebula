@@ -9,23 +9,23 @@ import Foundation
 import Logging
 
 /// A LogHandler that writes colorized output to stdout using ANSI escape codes.
-public struct ColorLogHandler: LogHandler {
+package struct ColorLogHandler: LogHandler {
 
-    public var metadata: Logger.Metadata = [:]
-    public var logLevel: Logger.Level = .info
+    package var metadata: Logger.Metadata = [:]
+    package var logLevel: Logger.Level = .info
 
     private let label: String
 
-    public init(label: String) {
+    package init(label: String) {
         self.label = label
     }
 
-    public subscript(metadataKey key: String) -> Logger.Metadata.Value? {
+    package subscript(metadataKey key: String) -> Logger.Metadata.Value? {
         get { metadata[key] }
         set { metadata[key] = newValue }
     }
 
-    public func log(
+    package func log(
         level: Logger.Level,
         message: Logger.Message,
         metadata: Logger.Metadata?,
