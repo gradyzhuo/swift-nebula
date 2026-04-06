@@ -28,6 +28,9 @@ let package = Package(
             ]),
         .testTarget(
             name: "NebulaTests",
-            dependencies: ["Nebula"]),
+            dependencies: [
+                "Nebula",
+                .product(name: "NIOEmbedded", package: "swift-nio"),
+            ]),
     ]
 )
