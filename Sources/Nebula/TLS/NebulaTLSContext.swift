@@ -1,5 +1,4 @@
 // Sources/Nebula/TLS/NebulaTLSContext.swift
-import Foundation
 import NIO
 import NIOSSL
 import Synchronization
@@ -42,7 +41,7 @@ public final class NebulaTLSContext: TLSContext {
     /// Rotate certificates. New connections use the updated contexts immediately.
     /// Throws if the new configuration contains invalid certificates.
     /// On failure, the existing contexts are preserved unchanged.
-    public func reload(configuration: NebulaTLSConfiguration) async throws {
+    public func reload(configuration: NebulaTLSConfiguration) throws {
         let newServer = try NebulaTLSContext.buildServerContext(from: configuration)
         let newClient = try NebulaTLSContext.buildClientContext(from: configuration)
         serverCtxBox.withLock { $0 = newServer }
