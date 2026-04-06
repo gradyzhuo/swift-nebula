@@ -131,4 +131,55 @@ struct BrokerAmasTests {
         #expect(matter.type == .enqueue)
         #expect(matter.matterID == msg.id)
     }
+
+    // MARK: - Fan-out
+
+    @Test func enqueue_fanOut_allSubscriptionGroupsReceiveMessage() async throws {
+        let broker = try makeBroker()
+        let (channel1, capture1) = try makeCapturingChannel()
+        let (channel2, capture2) = try makeCapturingChannel()
+        await broker.subscribe(subscription: "g1", channel: channel1)
+        await broker.subscribe(subscription: "g2", channel: channel2)
+
+        let msg = makeMessage()
+        try await broker.enqueue(message: msg)
+        (channel1.eventLoop as! EmbeddedEventLoop).run()
+        (channel2.eventLoop as! EmbeddedEventLoop).run()
+
+        let matters1 = capture1.snapshot()
+        let matter1 = try #require(matters1.first)
+        #expect(matter1.type == .enqueue)
+        #expect(matter1.matterID == msg.id)
+
+        let matters2 = capture2.snapshot()
+        let matter2 = try #require(matters2.first)
+        #expect(matter2.type == .enqueue)
+        #expect(matter2.matterID == msg.id)
+    }
+
+    // MARK: - Round-robin
+
+    @Test func enqueue_roundRobin_alternatesAcrossChannelsInSameGroup() async throws {
+        let broker = try makeBroker()
+        let (channel1, capture1) = try makeCapturingChannel()
+        let (channel2, capture2) = try makeCapturingChannel()
+        await broker.subscribe(subscription: "g1", channel: channel1)
+        await broker.subscribe(subscription: "g1", channel: channel2)
+
+        let msg1 = makeMessage()
+        let msg2 = makeMessage()
+        try await broker.enqueue(message: msg1)
+        try await broker.enqueue(message: msg2)
+        (channel1.eventLoop as! EmbeddedEventLoop).run()
+        (channel2.eventLoop as! EmbeddedEventLoop).run()
+
+        // msg1 → channel1 (index 0), msg2 → channel2 (index 1)
+        let matters1 = capture1.snapshot()
+        #expect(matters1.count == 1)
+        #expect(matters1[0].matterID == msg1.id)
+
+        let matters2 = capture2.snapshot()
+        #expect(matters2.count == 1)
+        #expect(matters2[0].matterID == msg2.id)
+    }
 }
