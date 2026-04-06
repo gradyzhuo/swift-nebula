@@ -26,10 +26,13 @@ public actor StandardIngress {
     private var galaxyRegistry: [String: SocketAddress] = [:]
     /// Cached GalaxyClients keyed by Galaxy name.
     private var galaxyClients: [String: GalaxyClient] = [:]
+    /// Optional TLS context forwarded to all outbound Galaxy connections.
+    private let tls: NebulaTLSContext?
 
-    public init(name: String = "ingress", identifier: UUID = UUID()) {
+    public init(name: String = "ingress", tls: NebulaTLSContext? = nil, identifier: UUID = UUID()) {
         self.identifier = identifier
         self.name = name
+        self.tls = tls
     }
 }
 
@@ -152,7 +155,7 @@ extension StandardIngress {
         if let existing = galaxyClients[name], existing.address == address {
             return existing
         }
-        let client = try await GalaxyClient.connect(to: address)
+        let client = try await GalaxyClient.connect(to: address, tls: tls)
         galaxyClients[name] = client
         return client
     }

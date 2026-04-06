@@ -31,9 +31,10 @@ public struct IngressClient: Sendable {
 
     public static func connect(
         to address: SocketAddress,
+        tls: NebulaTLSContext? = nil,
         eventLoopGroup: MultiThreadedEventLoopGroup? = nil
     ) async throws -> IngressClient {
-        let base = try await NMTClient.connect(to: address, eventLoopGroup: eventLoopGroup)
+        let base = try await NMTClient.connect(to: address, tls: tls, eventLoopGroup: eventLoopGroup)
         return IngressClient(base: base)
     }
 
@@ -135,9 +136,10 @@ public struct GalaxyClient: Sendable {
 
     public static func connect(
         to address: SocketAddress,
+        tls: NebulaTLSContext? = nil,
         eventLoopGroup: MultiThreadedEventLoopGroup? = nil
     ) async throws -> GalaxyClient {
-        let base = try await NMTClient.connect(to: address, eventLoopGroup: eventLoopGroup)
+        let base = try await NMTClient.connect(to: address, tls: tls, eventLoopGroup: eventLoopGroup)
         return GalaxyClient(base: base)
     }
 

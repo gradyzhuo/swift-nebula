@@ -25,14 +25,19 @@ public actor StandardGalaxy: Galaxy {
     /// Per-namespace retry policy overrides.
     private var retryPolicyOverrides: [String: RetryPolicy] = [:]
 
+    /// Optional TLS context forwarded to all outbound NMT connections.
+    private let tls: NebulaTLSContext?
+
     public init(
         name: String,
+        tls: NebulaTLSContext? = nil,
         identifier: UUID = UUID(),
         retryPolicy: RetryPolicy = .default
     ) throws {
         try Self.validateName(name)
         self.identifier = identifier
         self.name = name
+        self.tls = tls
         self.defaultRetryPolicy = retryPolicy
     }
 
