@@ -2,6 +2,16 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Development Workflow — MANDATORY
+
+**All modifications and new features in `swift-nebula` and `swift-nebula-client` must follow this process:**
+
+1. **Use `superpowers` + TDD** — invoke the superpowers brainstorming/planning skills and follow TDD for every change.
+2. **Every change must have test coverage** — no exception. If a feature or fix has no test case, it is not done.
+3. **Minor changes** — if the change is very small (e.g. a one-line rename, doc fix), ask the user before skipping superpowers. Even then, TDD still applies: write the test first.
+
+> `samples/` is exempt from the mandatory superpowers workflow, but TDD is still preferred where practical.
+
 ## Build & Test Commands
 
 ```bash
