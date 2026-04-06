@@ -70,9 +70,10 @@ public final class NebulaTLSContext: TLSContext {
             privateKey: try privateKey(from: config.identity)
         )
         tlsConfig.trustRoots = .certificates(try caCerts(from: config.ca))
-        // fullVerification requires a valid certificate chain from the peer.
-        // Combined with trustRoots, this enforces mTLS: clients without a valid cert are rejected.
-        tlsConfig.certificateVerification = .fullVerification
+        // noHostnameVerification verifies the client's certificate chain against the CA,
+        // but skips hostname verification — correct for mTLS, where client certs have no
+        // server-resolvable hostname. Clients presenting a cert not signed by the CA are rejected.
+        tlsConfig.certificateVerification = .noHostnameVerification
         return try NIOSSLContext(configuration: tlsConfig)
     }
 
@@ -83,7 +84,10 @@ public final class NebulaTLSContext: TLSContext {
         tlsConfig.certificateChain = try certChain(from: config.identity)
         tlsConfig.privateKey = try privateKey(from: config.identity)
         tlsConfig.trustRoots = .certificates(try caCerts(from: config.ca))
-        tlsConfig.certificateVerification = .fullVerification
+        // Nodes connect by IP address, not DNS hostname, so hostname verification
+        // is skipped. Certificate chain verification against the shared CA remains
+        // active — this is sufficient for mTLS identity assurance.
+        tlsConfig.certificateVerification = .noHostnameVerification
         return try NIOSSLContext(configuration: tlsConfig)
     }
 

@@ -165,3 +165,106 @@ private struct EchoMatter: NMTServerTarget {
         Matter(type: .reply, matterID: matter.matterID, body: matter.body)
     }
 }
+
+@Suite("mTLS Integration")
+struct MTLSIntegrationTests {
+
+    private func serverConfig() -> NebulaTLSConfiguration {
+        let p = fixturesPath()
+        return NebulaTLSConfiguration(
+            ca: .file(path: "\(p)/ca.crt"),
+            identity: .files(cert: "\(p)/server.crt", key: "\(p)/server.key")
+        )
+    }
+
+    private func clientConfig() -> NebulaTLSConfiguration {
+        let p = fixturesPath()
+        return NebulaTLSConfiguration(
+            ca: .file(path: "\(p)/ca.crt"),
+            identity: .files(cert: "\(p)/client.crt", key: "\(p)/client.key")
+        )
+    }
+
+    private func rogueClientConfig() -> NebulaTLSConfiguration {
+        let p = fixturesPath()
+        return NebulaTLSConfiguration(
+            // Trusts the real CA (so the server cert verification passes)
+            ca: .file(path: "\(p)/ca.crt"),
+            // But presents a cert signed by the rogue CA (server will reject)
+            identity: .files(
+                cert: "\(p)/rogue-client.crt",
+                key: "\(p)/rogue-client.key"
+            )
+        )
+    }
+
+    @Test func mTLS_handshake_succeeds() async throws {
+        let serverTLS = try NebulaTLSContext(configuration: serverConfig())
+        let clientTLS = try NebulaTLSContext(configuration: clientConfig())
+
+        let server = try await NMTServer.bind(
+            on: try SocketAddress.makeAddressResolvingHost("127.0.0.1", port: 0),
+            handler: EchoMatter(),
+            tls: serverTLS
+        )
+        defer { server.closeNow() }
+
+        let client = try await NMTClient.connect(to: server.address, tls: clientTLS)
+        defer { Task { try? await client.close() } }
+
+        let matter = Matter(type: .call, body: Data("hello-mtls".utf8))
+        let reply = try await client.request(matter: matter)
+        #expect(reply.matterID == matter.matterID)
+        #expect(reply.type == .reply)
+    }
+
+    @Test func mTLS_rejectsUnknownClientCert() async throws {
+        let serverTLS = try NebulaTLSContext(configuration: serverConfig())
+        let rogueTLS = try NebulaTLSContext(configuration: rogueClientConfig())
+
+        let server = try await NMTServer.bind(
+            on: try SocketAddress.makeAddressResolvingHost("127.0.0.1", port: 0),
+            handler: EchoMatter(),
+            tls: serverTLS
+        )
+        defer { server.closeNow() }
+
+        // The TLS handshake will fail because the rogue cert is not signed by the server's CA.
+        do {
+            let client = try await NMTClient.connect(to: server.address, tls: rogueTLS)
+            let matter = Matter(type: .call, body: Data())
+            _ = try await client.request(matter: matter)
+            Issue.record("Expected TLS handshake failure — connection should have been rejected")
+        } catch {
+            // Expected: NIOSSLError or channel-closed error
+        }
+    }
+
+    @Test func mTLS_existingConnectionSurvivesReload() async throws {
+        let serverTLS = try NebulaTLSContext(configuration: serverConfig())
+        let clientTLS = try NebulaTLSContext(configuration: clientConfig())
+
+        let server = try await NMTServer.bind(
+            on: try SocketAddress.makeAddressResolvingHost("127.0.0.1", port: 0),
+            handler: EchoMatter(),
+            tls: serverTLS
+        )
+        defer { server.closeNow() }
+
+        let client = try await NMTClient.connect(to: server.address, tls: clientTLS)
+        defer { Task { try? await client.close() } }
+
+        // Confirm the connection works before reload.
+        let before = Matter(type: .call, body: Data("before-reload".utf8))
+        let reply1 = try await client.request(matter: before)
+        #expect(reply1.type == .reply)
+
+        // Reload with the same certs (simulating cert rotation).
+        try serverTLS.reload(configuration: serverConfig())
+
+        // Existing connection must still be usable after reload.
+        let after = Matter(type: .call, body: Data("after-reload".utf8))
+        let reply2 = try await client.request(matter: after)
+        #expect(reply2.type == .reply)
+    }
+}
