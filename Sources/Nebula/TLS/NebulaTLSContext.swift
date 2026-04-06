@@ -94,7 +94,9 @@ public final class NebulaTLSContext: TLSContext {
     ) throws -> [NIOSSLCertificateSource] {
         switch source {
         case .files(let cert, _):
-            return [.file(cert)]
+            return try NIOSSLCertificate
+                .fromPEMFile(cert)
+                .map { .certificate($0) }
         case .pem(let certData, _):
             return try NIOSSLCertificate
                 .fromPEMBytes(Array(certData))
@@ -107,10 +109,9 @@ public final class NebulaTLSContext: TLSContext {
     ) throws -> NIOSSLPrivateKeySource {
         switch source {
         case .files(_, let key):
-            return .file(key)
+            return .privateKey(try NIOSSLPrivateKey(file: key, format: .pem))
         case .pem(_, let keyData):
-            return .privateKey(
-                try NIOSSLPrivateKey(bytes: Array(keyData), format: .pem))
+            return .privateKey(try NIOSSLPrivateKey(bytes: Array(keyData), format: .pem))
         }
     }
 
