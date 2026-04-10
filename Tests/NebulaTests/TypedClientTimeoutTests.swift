@@ -32,8 +32,7 @@ struct TypedClientTimeoutTests {
 
         let server = try await NMTServer.bind(
             on: .makeAddressResolvingHost("127.0.0.1", port: 0),
-            handler: NeverReplyHandler(),
-            eventLoopGroup: elg
+            handler: NeverReplyHandler()
         )
         defer { Task { await server.shutdown() } }
 
@@ -56,8 +55,7 @@ struct TypedClientTimeoutTests {
 
         let server = try await NMTServer.bind(
             on: .makeAddressResolvingHost("127.0.0.1", port: 0),
-            handler: NeverReplyHandler(),
-            eventLoopGroup: elg
+            handler: NeverReplyHandler()
         )
         defer { Task { await server.shutdown() } }
 
