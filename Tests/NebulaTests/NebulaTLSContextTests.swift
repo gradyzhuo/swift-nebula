@@ -149,7 +149,7 @@ struct TLSForwardingTests {
             handler: EchoMatter(),
             tls: serverTLS
         )
-        defer { server.closeNow() }
+        defer { Task { try? await server.shutdown() } }
 
         // GalaxyClient.connect must forward tls — confirmed by a successful
         // roundtrip with the TLS server.
@@ -209,7 +209,7 @@ struct MTLSIntegrationTests {
             handler: EchoMatter(),
             tls: serverTLS
         )
-        defer { server.closeNow() }
+        defer { Task { try? await server.shutdown() } }
 
         let client = try await NMTClient.connect(to: server.address, tls: clientTLS)
         defer { Task { try? await client.close() } }
@@ -229,7 +229,7 @@ struct MTLSIntegrationTests {
             handler: EchoMatter(),
             tls: serverTLS
         )
-        defer { server.closeNow() }
+        defer { Task { try? await server.shutdown() } }
 
         // The TLS handshake will fail because the rogue cert is not signed by the server's CA.
         // Issue.record fires if no error is thrown (meaning the rogue cert was wrongly accepted).
@@ -253,7 +253,7 @@ struct MTLSIntegrationTests {
             handler: EchoMatter(),
             tls: serverTLS
         )
-        defer { server.closeNow() }
+        defer { Task { try? await server.shutdown() } }
 
         let client = try await NMTClient.connect(to: server.address, tls: clientTLS)
         defer { Task { try? await client.close() } }
