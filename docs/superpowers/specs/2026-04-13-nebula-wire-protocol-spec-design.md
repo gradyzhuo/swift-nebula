@@ -85,10 +85,10 @@ Sources/Nebula/Nebula.docc/
 
 | behaviorID | Name        | Wire Type | Node      | Change from current |
 |------------|-------------|-----------|-----------|---------------------|
-| `0x0001`   | Clone       | command   | Ingress   | unchanged |
+| ~~`0x0001`~~ | ~~Clone~~ | removed   | —         | removed (load balancing design deferred) |
 | `0x0002`   | Register    | command   | Ingress   | unchanged |
 | `0x0003`   | Find        | **query** | Ingress   | wire type command→query; FindGalaxy merged in |
-| `0x0004`   | Execute     | command   | Stellar   | renamed from Call |
+| `0x0004`   | **Mutate**  | command   | Stellar   | renamed from Call |
 | `0x0005`   | Get         | **query** | Stellar   | **new** |
 | `0x0008`   | Unregister  | command   | Ingress   | unchanged |
 | `0x0009`   | Enqueue     | command   | Ingress / Galaxy | unchanged |
@@ -123,7 +123,7 @@ Sources/Nebula/Nebula.docc/
 - `astralType` values: `ingress`, `stellar`, `galaxy`.
 - Empty `astrals` array with `statusCode = 404` if no match found.
 
-### Execute (0x0004) — command → Stellar
+### Mutate (0x0004) — command → Stellar
 
 **Request body:**
 ```json
@@ -142,19 +142,7 @@ Sources/Nebula/Nebula.docc/
 
 ### Get (0x0005) — query → Stellar
 
-Same schema as Execute. Semantic contract: the called method must not mutate state.
-
-### Clone (0x0001) — command → Ingress
-
-**Request body:**
-```json
-{ "namespace": "a.b.c" }
-```
-
-**Reply body (200 OK):**
-```json
-{ "cloneID": "<uuid>" }
-```
+Same schema as Mutate. Semantic contract: the called method must not mutate state.
 
 ### Register (0x0002) — command → Ingress
 
@@ -197,12 +185,14 @@ Same schema as Execute. Semantic contract: the called method must not mutate sta
 **Request body:**
 ```json
 {
+  "namespace": "a.b",
   "topic": "production.orders",
   "service": "OrderService",
   "method": "processOrder",
   "arguments": [ "<msgpack-base64-encoded values>" ]
 }
 ```
+- `namespace`: identifies the Nebula namespace backing this enqueue operation
 - `topic`: Galaxy routing key (e.g. `"production.orders"`)
 - `service` / `method` / `arguments`: forwarded to the Stellar worker that processes the job
 
@@ -335,7 +325,7 @@ This spec introduces **breaking changes** to swift-nmtp and swift-nebula:
 | Repo | Change |
 |------|--------|
 | `swift-nmtp` | `MatterPayload` for reply: add `statusCode: UInt16` field |
-| `swift-nebula` | All reply encoding/decoding updates; `Call` → `Execute`; `Find` wire type → query + merged FindGalaxy; new `Get` behavior; remove `FindGalaxy`; `Unregister` reply schema: `nextHost`/`nextPort` → `nextAstral` object |
+| `swift-nebula` | All reply encoding/decoding updates; `Call` → `Mutate`; `Find` wire type → query + merged FindGalaxy; new `Get` behavior; remove `Clone`; remove `FindGalaxy`; `Unregister` reply schema: `nextHost`/`nextPort` → `nextAstral` object |
 | `swift-nebula-client` | All of the above + migration to swift-nmtp 0.1.0 API |
 
 **Recommended implementation order:**
