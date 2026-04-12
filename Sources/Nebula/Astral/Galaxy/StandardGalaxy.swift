@@ -1,9 +1,4 @@
-//
-//  StandardGalaxy.swift
-//
-//
-//  Created by Grady Zhuo on 2026/3/22.
-//
+// Sources/Nebula/Astral/Galaxy/StandardGalaxy.swift
 
 import Foundation
 import NIO
@@ -15,17 +10,10 @@ public actor StandardGalaxy: Galaxy {
     public let identifier: UUID
     public let name: String
 
-    /// LoadBalanceCluster instances keyed by namespace (RPC path).
     private var managedClusters: [String: LoadBalanceCluster] = [:]
-    /// BrokerCluster instances keyed by namespace (broker path).
     private var managedBrokerClusters: [String: BrokerCluster] = [:]
-
-    /// Global default retry policy for all BrokerCluster instances.
     private let defaultRetryPolicy: RetryPolicy
-    /// Per-namespace retry policy overrides.
     private var retryPolicyOverrides: [String: RetryPolicy] = [:]
-
-    /// Optional TLS context forwarded to all outbound NMT connections.
     private let tls: NebulaTLSContext?
 
     public init(
@@ -41,36 +29,39 @@ public actor StandardGalaxy: Galaxy {
         self.defaultRetryPolicy = retryPolicy
     }
 
-    /// Override the retry policy for a specific broker namespace.
     public func configure(namespace: String, retryPolicy: RetryPolicy) {
         retryPolicyOverrides[namespace] = retryPolicy
     }
 }
 
-// MARK: - NMTServerTarget
+// MARK: - Dispatcher registration
 
-extension StandardGalaxy: NMTServerTarget {
+extension StandardGalaxy {
 
-    public func handle(matter: Matter, channel: Channel) async throws -> Matter? {
-        switch matter.type {
-        case .register:
-            return try await handleRegister(envelope: matter)
-        case .find:
-            return try await handleFind(envelope: matter)
-        case .unregister:
-            return try await handleUnregister(envelope: matter)
-        case .clone:
-            return try makeCloneReply(envelope: matter)
-        case .enqueue:
-            return try await handleEnqueue(envelope: matter)
-        case .ack:
-            return try await handleAck(envelope: matter)
-        case .subscribe:
-            return try await handleSubscribe(envelope: matter, channel: channel)
-        case .unsubscribe:
-            return try await handleUnsubscribe(envelope: matter, channel: channel)
-        default:
-            return nil
+    public func register(on dispatcher: NMTDispatcher) {
+        dispatcher.register(RegisterMatter.self) { [unowned self] matter, _ in
+            try await self.handleRegister(matter)
+        }
+        dispatcher.register(FindMatter.self) { [unowned self] matter, _ in
+            try await self.handleFind(matter)
+        }
+        dispatcher.register(UnregisterMatter.self) { [unowned self] matter, _ in
+            try await self.handleUnregister(matter)
+        }
+        dispatcher.register(CloneMatter.self) { [unowned self] _, _ in
+            await self.cloneReply()
+        }
+        dispatcher.register(EnqueueMatter.self) { [unowned self] matter, _ in
+            try await self.handleEnqueue(matter)
+        }
+        dispatcher.register(AckMatter.self) { [unowned self] matter, _ in
+            await self.handleAck(matter)
+        }
+        dispatcher.register(SubscribeMatter.self) { [unowned self] matter, channel in
+            try await self.handleSubscribe(matter, channel: channel)
+        }
+        dispatcher.register(UnsubscribeMatter.self) { [unowned self] matter, channel in
+            await self.handleUnsubscribe(matter, channel: channel)
         }
     }
 }
@@ -79,50 +70,36 @@ extension StandardGalaxy: NMTServerTarget {
 
 extension StandardGalaxy {
 
-    private func handleRegister(envelope: Matter) async throws -> Matter {
-        let body = try envelope.decodeBody(RegisterBody.self)
-        let address = try SocketAddress.makeAddressResolvingHost(body.host, port: body.port)
-        let cluster = try clusterFor(namespace: body.namespace)
-        try await cluster.addStellar(namespace: body.namespace, endpoint: address)
-        return try envelope.reply(body: RegisterReplyBody(status: "ok"))
+    private func handleRegister(_ matter: RegisterMatter) async throws -> RegisterReplyMatter {
+        let address = try SocketAddress.makeAddressResolvingHost(matter.host, port: matter.port)
+        let cluster = try clusterFor(namespace: matter.namespace)
+        try await cluster.addStellar(namespace: matter.namespace, endpoint: address)
+        return RegisterReplyMatter(status: "ok")
     }
 
-    private func handleFind(envelope: Matter) async throws -> Matter {
-        let body = try envelope.decodeBody(FindBody.self)
-
-        guard let cluster = managedClusters[body.namespace] else {
-            return try envelope.reply(body: FindReplyBody())
+    private func handleFind(_ matter: FindMatter) async throws -> FindReplyMatter {
+        guard let cluster = managedClusters[matter.namespace] else {
+            return FindReplyMatter()
         }
-
-        let address = try await cluster.allocateStellar(for: body.namespace)
-        return try envelope.reply(body: FindReplyBody(
-            stellarHost: address.ipAddress,
-            stellarPort: address.port
-        ))
+        let address = try await cluster.allocateStellar(for: matter.namespace)
+        return FindReplyMatter(stellarHost: address.ipAddress, stellarPort: address.port)
     }
 
-    private func handleUnregister(envelope: Matter) async throws -> Matter {
-        let body = try envelope.decodeBody(UnregisterBody.self)
-
-        guard let cluster = managedClusters[body.namespace] else {
-            return try envelope.reply(body: UnregisterReplyBody())
+    private func handleUnregister(_ matter: UnregisterMatter) async throws -> UnregisterReplyMatter {
+        guard let cluster = managedClusters[matter.namespace] else {
+            return UnregisterReplyMatter()
         }
-
-        await cluster.removeStellar(namespace: body.namespace, host: body.host, port: body.port)
-        let next = try? await cluster.allocateStellar(for: body.namespace)
-        return try envelope.reply(body: UnregisterReplyBody(
-            nextHost: next?.ipAddress,
-            nextPort: next?.port
-        ))
+        await cluster.removeStellar(namespace: matter.namespace, host: matter.host, port: matter.port)
+        let next = try? await cluster.allocateStellar(for: matter.namespace)
+        return UnregisterReplyMatter(nextHost: next?.ipAddress, nextPort: next?.port)
     }
 
-    private func makeCloneReply(envelope: Matter) throws -> Matter {
-        let reply = CloneReplyBody(
+    private func cloneReply() -> CloneReplyMatter {
+        CloneReplyMatter(
             identifier: identifier.uuidString,
             name: name,
             category: AstralCategory.galaxy.rawValue
         )
-        return try envelope.reply(body: reply)
     }
 }
 
@@ -130,41 +107,35 @@ extension StandardGalaxy {
 
 extension StandardGalaxy {
 
-    private func handleEnqueue(envelope: Matter) async throws -> Matter {
-        let body = try envelope.decodeBody(EnqueueBody.self)
-        let broker = try brokerClusterFor(namespace: body.namespace)
+    private func handleEnqueue(_ matter: EnqueueMatter) async throws -> RegisterReplyMatter {
+        let broker = try brokerClusterFor(namespace: matter.namespace)
         let message = QueuedMatter(
-            id: envelope.matterID,
-            namespace: body.namespace,
-            service: body.service,
-            method: body.method,
-            arguments: body.arguments
+            id: UUID(),
+            namespace: matter.namespace,
+            service: matter.service,
+            method: matter.method,
+            arguments: matter.arguments
         )
         try await broker.enqueue(message: message)
-        return try envelope.reply(body: RegisterReplyBody(status: "queued"))
+        return RegisterReplyMatter(status: "queued")
     }
 
-    private func handleAck(envelope: Matter) async throws -> Matter? {
-        let body = try envelope.decodeBody(AckBody.self)
-        guard let matterID = UUID(uuidString: body.matterID) else { return nil }
+    private func handleAck(_ matter: AckMatter) async {
+        guard let matterID = UUID(uuidString: matter.matterID) else { return }
         for broker in managedBrokerClusters.values {
             await broker.acknowledge(matterID: matterID)
         }
-        return nil
     }
 
-    private func handleSubscribe(envelope: Matter, channel: Channel) async throws -> Matter? {
-        let body = try envelope.decodeBody(SubscribeBody.self)
-        let broker = try brokerClusterFor(namespace: body.topic)
-        await broker.subscribe(subscription: body.subscription, channel: channel)
-        return try envelope.reply(body: RegisterReplyBody(status: "ok"))
+    private func handleSubscribe(_ matter: SubscribeMatter, channel: Channel) async throws -> RegisterReplyMatter {
+        let broker = try brokerClusterFor(namespace: matter.topic)
+        await broker.subscribe(subscription: matter.subscription, channel: channel)
+        return RegisterReplyMatter(status: "ok")
     }
 
-    private func handleUnsubscribe(envelope: Matter, channel: Channel) async throws -> Matter? {
-        let body = try envelope.decodeBody(UnsubscribeBody.self)
-        guard let broker = managedBrokerClusters[body.topic] else { return nil }
-        await broker.unsubscribe(subscription: body.subscription, channel: channel)
-        return try envelope.reply(body: RegisterReplyBody(status: "ok"))
+    private func handleUnsubscribe(_ matter: UnsubscribeMatter, channel: Channel) async {
+        guard let broker = managedBrokerClusters[matter.topic] else { return }
+        await broker.unsubscribe(subscription: matter.subscription, channel: channel)
     }
 }
 
@@ -190,13 +161,7 @@ extension StandardGalaxy {
         managedBrokerClusters[namespace] = broker
         return broker
     }
-}
 
-// MARK: - Programmatic Registration
-
-extension StandardGalaxy {
-
-    /// Register a Stellar endpoint under a namespace (server-side, in-process).
     public func register(namespace: String, stellarEndpoint: SocketAddress) async throws {
         let cluster = try clusterFor(namespace: namespace)
         try await cluster.addStellar(namespace: namespace, endpoint: stellarEndpoint)
