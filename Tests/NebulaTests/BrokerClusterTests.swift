@@ -223,17 +223,23 @@ struct BrokerClusterTests {
         let msg = makeMessage()
         try await broker.enqueue(message: msg)
 
-        // Wait for the first ACK timeout to fire (~50ms) and handleTimeout to complete.
-        // Check at 75ms — after first retry but before the second timeout fires at ~100ms.
-        try await Task.sleep(for: .milliseconds(75))
+        // Poll for the first retry (ackTimeout=50ms). Acknowledge as soon as
+        // we observe retryCount=1 to cancel the pending second timeout and
+        // keep the test deterministic across slow CI runners.
+        var messages: [QueuedMatter] = []
+        let deadline = ContinuousClock.now.advanced(by: .seconds(2))
+        while ContinuousClock.now < deadline {
+            messages = await active.pendingMessages()
+            if messages.first?.retryCount == 1 {
+                await broker.acknowledge(matterID: msg.id)
+                break
+            }
+            try await Task.sleep(for: .milliseconds(5))
+        }
 
         // handleTimeout should have incremented retryCount and re-appended to active.
-        let messages = await active.pendingMessages()
         #expect(messages.count == 1)
-        #expect(messages[0].retryCount == 1)
-
-        // Acknowledge to cancel the pending second timeout and prevent a second retry/park.
-        await broker.acknowledge(matterID: msg.id)
+        #expect(messages.first?.retryCount == 1)
 
         // Drain any pending tasks on the async testing event loop to avoid deinit crash.
         await (channel.eventLoop as! NIOAsyncTestingEventLoop).run()
