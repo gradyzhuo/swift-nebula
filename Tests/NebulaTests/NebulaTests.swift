@@ -92,38 +92,35 @@ struct NMTMiddlewareChainTests {
 
 // MARK: - Suite 2: Ingress Routing (integration)
 
-@Suite("Ingress Routing")
+@Suite("Ingress Routing", .serialized)
 struct IngressRoutingTests {
 
-    private func bindEchoStellar(namespace: String) async throws -> NMTServer {
+    private func bindEchoStellar(namespace: String, group: MultiThreadedEventLoopGroup) async throws -> NMTServer {
         let stellar = try ServiceStellar(name: "echo", namespace: namespace)
         let svc = Service(name: "echo")
         await svc.add(method: "ping") { _ in Data([1]) }
         await stellar.add(service: svc)
         let dispatcher = NMTDispatcher()
         await stellar.register(on: dispatcher)
-        return try await NMTServer.bind(on: try loopbackPort0(), handler: dispatcher)
+        return try await NMTServer.bind(on: try loopbackPort0(), handler: dispatcher, eventLoopGroup: group)
     }
 
     @Test func find_returnsStellarAddress() async throws {
+        let group = MultiThreadedEventLoopGroup(numberOfThreads: 2)
         let galaxy = try StandardGalaxy(name: "test")
         let galaxyDispatcher = NMTDispatcher()
         await galaxy.register(on: galaxyDispatcher)
-        let galaxyServer = try await NMTServer.bind(on: try loopbackPort0(), handler: galaxyDispatcher)
-        defer { Task { try? await galaxyServer.stop() } }
+        let galaxyServer = try await NMTServer.bind(on: try loopbackPort0(), handler: galaxyDispatcher, eventLoopGroup: group)
 
-        let stellarServer = try await bindEchoStellar(namespace: "test.echo")
-        defer { Task { try? await stellarServer.stop() } }
-
+        let stellarServer = try await bindEchoStellar(namespace: "test.echo", group: group)
         try await galaxy.register(namespace: "test.echo", stellarEndpoint: stellarServer.address)
 
         let ingress = StandardIngress(name: "ingress")
         let ingressDispatcher = NMTDispatcher()
         await ingress.register(on: ingressDispatcher)
-        let ingressServer = try await NMTServer.bind(on: try loopbackPort0(), handler: ingressDispatcher)
-        defer { Task { try? await ingressServer.stop() } }
+        let ingressServer = try await NMTServer.bind(on: try loopbackPort0(), handler: ingressDispatcher, eventLoopGroup: group)
 
-        let ingressClient = try await IngressClient.connect(to: ingressServer.address)
+        let ingressClient = try await IngressClient.connect(to: ingressServer.address, eventLoopGroup: group)
         try await ingressClient.registerGalaxy(
             name: "test",
             address: galaxyServer.address,
@@ -132,19 +129,23 @@ struct IngressRoutingTests {
 
         let result = try await ingressClient.find(namespace: "test.echo")
         #expect(result.stellarAddress != nil)
+
+        try? await ingressClient.close()
+        try? await ingressServer.stop()
+        try? await stellarServer.stop()
+        try? await galaxyServer.stop()
+        try? await group.shutdownGracefully()
     }
 
     @Test func unregister_removesDeadStellarAndReturnsNext() async throws {
+        let group = MultiThreadedEventLoopGroup(numberOfThreads: 2)
         let galaxy = try StandardGalaxy(name: "test")
         let galaxyDispatcher = NMTDispatcher()
         await galaxy.register(on: galaxyDispatcher)
-        let galaxyServer = try await NMTServer.bind(on: try loopbackPort0(), handler: galaxyDispatcher)
-        defer { Task { try? await galaxyServer.stop() } }
+        let galaxyServer = try await NMTServer.bind(on: try loopbackPort0(), handler: galaxyDispatcher, eventLoopGroup: group)
 
-        let stellar1Server = try await bindEchoStellar(namespace: "test.echo")
-        defer { Task { try? await stellar1Server.stop() } }
-        let stellar2Server = try await bindEchoStellar(namespace: "test.echo")
-        defer { Task { try? await stellar2Server.stop() } }
+        let stellar1Server = try await bindEchoStellar(namespace: "test.echo", group: group)
+        let stellar2Server = try await bindEchoStellar(namespace: "test.echo", group: group)
 
         try await galaxy.register(namespace: "test.echo", stellarEndpoint: stellar1Server.address)
         try await galaxy.register(namespace: "test.echo", stellarEndpoint: stellar2Server.address)
@@ -152,10 +153,9 @@ struct IngressRoutingTests {
         let ingress = StandardIngress(name: "ingress")
         let ingressDispatcher = NMTDispatcher()
         await ingress.register(on: ingressDispatcher)
-        let ingressServer = try await NMTServer.bind(on: try loopbackPort0(), handler: ingressDispatcher)
-        defer { Task { try? await ingressServer.stop() } }
+        let ingressServer = try await NMTServer.bind(on: try loopbackPort0(), handler: ingressDispatcher, eventLoopGroup: group)
 
-        let ingressClient = try await IngressClient.connect(to: ingressServer.address)
+        let ingressClient = try await IngressClient.connect(to: ingressServer.address, eventLoopGroup: group)
         try await ingressClient.registerGalaxy(
             name: "test",
             address: galaxyServer.address,
@@ -172,6 +172,13 @@ struct IngressRoutingTests {
         )
         let nextAddr = try #require(next.nextAddress)
         #expect(nextAddr != firstAddr)
+
+        try? await ingressClient.close()
+        try? await ingressServer.stop()
+        try? await stellar1Server.stop()
+        try? await stellar2Server.stop()
+        try? await galaxyServer.stop()
+        try? await group.shutdownGracefully()
     }
 }
 
