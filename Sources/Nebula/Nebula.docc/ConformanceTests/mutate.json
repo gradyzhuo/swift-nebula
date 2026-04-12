@@ -1,0 +1,31 @@
+{
+  "behavior": "mutate",
+  "behaviorID": "0x0004",
+  "matterType": "command",
+  "description": "Client invokes a side-effectful method on Stellar",
+  "cases": [
+    {
+      "name": "mutate_success",
+      "precondition": "Stellar connected with TestService.echo method registered",
+      "request": {
+        "namespace": "conformance.test",
+        "service": "TestService",
+        "method": "echo",
+        "arguments": []
+      },
+      "expectedStatusCode": 200,
+      "expectedReply": { "result": "<any string>" }
+    },
+    {
+      "name": "mutate_method_not_found",
+      "request": {
+        "namespace": "conformance.test",
+        "service": "TestService",
+        "method": "nonexistentMethod",
+        "arguments": []
+      },
+      "expectedStatusCode": 404,
+      "expectedReply": {}
+    }
+  ]
+}

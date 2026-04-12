@@ -1,0 +1,33 @@
+{
+  "behavior": "enqueue",
+  "behaviorID": "0x0009",
+  "matterType": "command",
+  "description": "Submit a job to a Galaxy broker",
+  "cases": [
+    {
+      "name": "enqueue_success",
+      "precondition": "Galaxy registered for topic conformance.jobs",
+      "request": {
+        "namespace": "conformance",
+        "topic": "conformance.jobs",
+        "service": "TestService",
+        "method": "processJob",
+        "arguments": []
+      },
+      "expectedStatusCode": 200,
+      "expectedReply": { "status": "queued" }
+    },
+    {
+      "name": "enqueue_topic_not_found",
+      "request": {
+        "namespace": "conformance",
+        "topic": "nonexistent.topic",
+        "service": "TestService",
+        "method": "processJob",
+        "arguments": []
+      },
+      "expectedStatusCode": 404,
+      "expectedReply": {}
+    }
+  ]
+}

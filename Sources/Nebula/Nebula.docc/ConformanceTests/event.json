@@ -1,0 +1,32 @@
+{
+  "behavior": "event",
+  "behaviorID": "0x000D",
+  "matterType": "event",
+  "description": "Galaxy pushes a queued job to a subscriber",
+  "cases": [
+    {
+      "name": "event_delivered_after_enqueue",
+      "precondition": "subscribe_success must run first; then enqueue_success must run",
+      "trigger": "enqueue",
+      "expectedPush": {
+        "topic": "conformance.jobs",
+        "subscription": "test-runner",
+        "namespace": "conformance",
+        "service": "TestService",
+        "method": "processJob",
+        "arguments": [],
+        "retryCount": 0
+      }
+    },
+    {
+      "name": "event_redelivered_after_no_ack",
+      "precondition": "event_delivered_after_enqueue must run; do NOT send Ack; wait for server ackTimeout",
+      "trigger": "timeout",
+      "expectedPush": {
+        "topic": "conformance.jobs",
+        "subscription": "test-runner",
+        "retryCount": 1
+      }
+    }
+  ]
+}

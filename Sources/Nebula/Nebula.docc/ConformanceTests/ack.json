@@ -1,0 +1,21 @@
+{
+  "behavior": "ack",
+  "behaviorID": "0x000A",
+  "matterType": "command",
+  "description": "Acknowledge a delivered event",
+  "cases": [
+    {
+      "name": "ack_success",
+      "precondition": "An Event has been received with a known matterID",
+      "request": { "matterID": "<uuid of received event>" },
+      "expectedStatusCode": 200,
+      "expectedReply": { "status": "acknowledged" }
+    },
+    {
+      "name": "ack_not_found",
+      "request": { "matterID": "00000000-0000-0000-0000-000000000000" },
+      "expectedStatusCode": 404,
+      "expectedReply": {}
+    }
+  ]
+}

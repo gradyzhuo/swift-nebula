@@ -1,0 +1,31 @@
+{
+  "behavior": "register",
+  "behaviorID": "0x0002",
+  "matterType": "command",
+  "description": "Stellar registers itself with Ingress",
+  "cases": [
+    {
+      "name": "register_success",
+      "request": {
+        "namespace": "conformance.test",
+        "service": "TestService",
+        "host": "127.0.0.1",
+        "port": 9001
+      },
+      "expectedStatusCode": 200,
+      "expectedReply": { "status": "registered" }
+    },
+    {
+      "name": "register_conflict",
+      "precondition": "register_success must run first",
+      "request": {
+        "namespace": "conformance.test",
+        "service": "TestService",
+        "host": "127.0.0.1",
+        "port": 9001
+      },
+      "expectedStatusCode": 409,
+      "expectedReply": {}
+    }
+  ]
+}

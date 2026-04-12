@@ -1,0 +1,29 @@
+{
+  "behavior": "unregister",
+  "behaviorID": "0x0008",
+  "matterType": "command",
+  "description": "Remove a Stellar from Ingress registry",
+  "cases": [
+    {
+      "name": "unregister_last_stellar_no_next",
+      "precondition": "Only one Stellar registered for conformance.test",
+      "request": {
+        "namespace": "conformance.test",
+        "host": "127.0.0.1",
+        "port": 9001
+      },
+      "expectedStatusCode": 200,
+      "expectedReply": { "nextAstral": null }
+    },
+    {
+      "name": "unregister_not_found",
+      "request": {
+        "namespace": "conformance.test",
+        "host": "127.0.0.1",
+        "port": 9999
+      },
+      "expectedStatusCode": 404,
+      "expectedReply": {}
+    }
+  ]
+}

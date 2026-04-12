@@ -1,0 +1,39 @@
+{
+  "behavior": "find",
+  "behaviorID": "0x0003",
+  "matterType": "query",
+  "description": "Client queries Ingress for astrals under a namespace",
+  "cases": [
+    {
+      "name": "find_stellar",
+      "precondition": "register_success from register.json must run first",
+      "request": { "namespace": "conformance.test" },
+      "expectedStatusCode": 200,
+      "expectedReply": {
+        "astrals": [
+          {
+            "namespace": "conformance.test",
+            "astralType": "stellar",
+            "host": "<any string>",
+            "port": "<any int>"
+          }
+        ]
+      }
+    },
+    {
+      "name": "find_not_found",
+      "request": { "namespace": "nonexistent.namespace" },
+      "expectedStatusCode": 404,
+      "expectedReply": { "astrals": [] }
+    },
+    {
+      "name": "find_parent_namespace",
+      "precondition": "Galaxy registered under 'conformance' namespace",
+      "request": { "namespace": "conformance.test" },
+      "expectedStatusCode": 200,
+      "expectedReply": {
+        "astrals": "<any array>"
+      }
+    }
+  ]
+}

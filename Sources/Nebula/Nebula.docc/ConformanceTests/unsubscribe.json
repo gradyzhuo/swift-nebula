@@ -1,0 +1,27 @@
+{
+  "behavior": "unsubscribe",
+  "behaviorID": "0x000C",
+  "matterType": "command",
+  "description": "Remove a subscription from Galaxy",
+  "cases": [
+    {
+      "name": "unsubscribe_success",
+      "precondition": "subscribe_success must run first",
+      "request": {
+        "topic": "conformance.jobs",
+        "subscription": "test-runner"
+      },
+      "expectedStatusCode": 200,
+      "expectedReply": { "status": "unsubscribed" }
+    },
+    {
+      "name": "unsubscribe_not_found",
+      "request": {
+        "topic": "conformance.jobs",
+        "subscription": "nonexistent-subscription"
+      },
+      "expectedStatusCode": 404,
+      "expectedReply": {}
+    }
+  ]
+}

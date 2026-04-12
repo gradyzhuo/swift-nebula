@@ -1,0 +1,37 @@
+{
+  "behavior": "subscribe",
+  "behaviorID": "0x000B",
+  "matterType": "command",
+  "description": "Register a subscription on Galaxy",
+  "cases": [
+    {
+      "name": "subscribe_success",
+      "precondition": "Galaxy running with topic conformance.jobs",
+      "request": {
+        "topic": "conformance.jobs",
+        "subscription": "test-runner"
+      },
+      "expectedStatusCode": 200,
+      "expectedReply": { "status": "subscribed" }
+    },
+    {
+      "name": "subscribe_conflict",
+      "precondition": "subscribe_success must run first",
+      "request": {
+        "topic": "conformance.jobs",
+        "subscription": "test-runner"
+      },
+      "expectedStatusCode": 409,
+      "expectedReply": {}
+    },
+    {
+      "name": "subscribe_topic_not_found",
+      "request": {
+        "topic": "nonexistent.topic",
+        "subscription": "test-runner"
+      },
+      "expectedStatusCode": 404,
+      "expectedReply": {}
+    }
+  ]
+}

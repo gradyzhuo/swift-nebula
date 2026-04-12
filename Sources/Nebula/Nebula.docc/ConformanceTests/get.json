@@ -1,0 +1,31 @@
+{
+  "behavior": "get",
+  "behaviorID": "0x0005",
+  "matterType": "query",
+  "description": "Client invokes a read-only method on Stellar",
+  "cases": [
+    {
+      "name": "get_success",
+      "precondition": "Stellar connected with TestService.ping method registered",
+      "request": {
+        "namespace": "conformance.test",
+        "service": "TestService",
+        "method": "ping",
+        "arguments": []
+      },
+      "expectedStatusCode": 200,
+      "expectedReply": { "result": "<any string>" }
+    },
+    {
+      "name": "get_method_not_found",
+      "request": {
+        "namespace": "conformance.test",
+        "service": "TestService",
+        "method": "nonexistentMethod",
+        "arguments": []
+      },
+      "expectedStatusCode": 404,
+      "expectedReply": {}
+    }
+  ]
+}
