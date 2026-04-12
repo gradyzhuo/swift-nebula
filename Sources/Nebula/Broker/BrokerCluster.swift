@@ -8,6 +8,7 @@
 import Foundation
 import NIO
 import NMTP
+import MessagePacker
 
 /// A Cluster that handles async messaging — MQ and Pub/Sub.
 ///
@@ -93,14 +94,16 @@ extension BrokerCluster {
 
     private func send(message: QueuedMatter, to channel: Channel, subscription: String) {
         do {
-            let body = EnqueueBody(
+            let action = EnqueueMatter(
                 namespace: message.namespace,
                 service: message.service,
                 method: message.method,
                 arguments: message.arguments
             )
-            let matter = try Matter.make(
-                type: .enqueue,
+            let body = try MessagePackEncoder().encode(action)
+            let matter = Matter.make(
+                type: EnqueueMatter.type,
+                typeID: EnqueueMatter.typeID,
                 body: body,
                 matterID: message.id
             )

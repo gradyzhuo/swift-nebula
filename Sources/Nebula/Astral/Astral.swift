@@ -34,7 +34,7 @@ public protocol Astral: Sendable {
     var namespace: String { get }
 }
 
-public protocol ServerAstral: Astral, NMTServerTarget {}
+public protocol ServerAstral: Astral {}
 
 extension Astral {
     public var namespace: String { name }
