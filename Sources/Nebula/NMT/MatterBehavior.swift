@@ -21,5 +21,5 @@ public protocol MatterBehavior: Codable, Sendable {
     /// Class-2 dispatch key. Unique per Nebula message type.
     static var typeID: UInt16 { get }
     /// NMTP wire frame classification for this action.
-    static var type: NMTP.MatterBehavior { get }
+    static var type: MatterType { get }
 }
