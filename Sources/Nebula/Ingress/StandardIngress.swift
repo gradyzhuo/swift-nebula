@@ -1,32 +1,17 @@
-//
-//  StandardIngress.swift
-//
-//
-//  Created by Grady Zhuo on 2026/3/23.
-//
+// Sources/Nebula/Ingress/StandardIngress.swift
 
 import Foundation
 import NIO
 import NMTP
 
-/// The root entry point for the Nebula network.
-///
-/// Ingress is a Galaxy routing table — it knows which Galaxy lives where.
-/// Galaxies register themselves with Ingress on startup.
-/// When Planet sends a `find` or `unregister`, Ingress routes to the appropriate Galaxy.
-///
-/// Default port: 6224
 public actor StandardIngress {
     public static let defaultPort: Int = 6224
 
     public let identifier: UUID
     public let name: String
 
-    /// Galaxy name → address mapping.
     private var galaxyRegistry: [String: SocketAddress] = [:]
-    /// Cached GalaxyClients keyed by Galaxy name.
     private var galaxyClients: [String: GalaxyClient] = [:]
-    /// Optional TLS context forwarded to all outbound Galaxy connections.
     private let tls: NebulaTLSContext?
 
     public init(name: String = "ingress", tls: NebulaTLSContext? = nil, identifier: UUID = UUID()) {
@@ -36,111 +21,76 @@ public actor StandardIngress {
     }
 }
 
-// MARK: - NMTServerTarget
+// MARK: - Dispatcher registration
 
-extension StandardIngress: NMTServerTarget {
+extension StandardIngress {
 
-    public func handle(matter: Matter, channel: Channel) async throws -> Matter? {
-        switch matter.type {
-        case .register:
-            return try handleRegister(envelope: matter)
-        case .find:
-            return try await handleFind(envelope: matter)
-        case .unregister:
-            return try await handleUnregister(envelope: matter)
-        case .enqueue:
-            return try await handleEnqueue(envelope: matter)
-        case .findGalaxy:
-            return try handleFindGalaxy(envelope: matter)
-        case .clone:
-            return try makeCloneReply(envelope: matter)
-        default:
-            return nil
+    public func register(on dispatcher: NMTDispatcher) {
+        dispatcher.register(RegisterMatter.self) { [unowned self] matter, _ in
+            try await self.handleRegister(matter)
+        }
+        dispatcher.register(FindMatter.self) { [unowned self] matter, _ in
+            try await self.handleFind(matter)
+        }
+        dispatcher.register(UnregisterMatter.self) { [unowned self] matter, _ in
+            try await self.handleUnregister(matter)
+        }
+        dispatcher.register(EnqueueMatter.self) { [unowned self] matter, _ in
+            try await self.handleEnqueue(matter)
+        }
+        dispatcher.register(FindGalaxyMatter.self) { [unowned self] matter, _ in
+            await self.handleFindGalaxy(matter)
+        }
+        dispatcher.register(CloneMatter.self) { [unowned self] _, _ in
+            await self.cloneReply()
         }
     }
 }
 
-// MARK: - NMT Handlers
+// MARK: - Handlers
 
 extension StandardIngress {
 
-    /// Handle Galaxy registration: Galaxy sends its name and address.
-    private func handleRegister(envelope: Matter) throws -> Matter {
-        let body = try envelope.decodeBody(RegisterBody.self)
-        let address = try SocketAddress.makeAddressResolvingHost(body.host, port: body.port)
-        galaxyRegistry[body.namespace] = address
-        return try envelope.reply(body: RegisterReplyBody(status: "ok"))
+    private func handleRegister(_ matter: RegisterMatter) throws -> RegisterReplyMatter {
+        let address = try SocketAddress.makeAddressResolvingHost(matter.host, port: matter.port)
+        galaxyRegistry[matter.namespace] = address
+        return RegisterReplyMatter(status: "ok")
     }
 
-    /// Handle find from Planet: extract Galaxy name, forward to Galaxy, relay response.
-    private func handleFind(envelope: Matter) async throws -> Matter {
-        let body = try envelope.decodeBody(FindBody.self)
-        let galaxyName = String(body.namespace.split(separator: ".").first ?? Substring(body.namespace))
-
-        guard let galaxyAddress = galaxyRegistry[galaxyName] else {
-            return try envelope.reply(body: FindReplyBody())
-        }
-
+    private func handleFind(_ matter: FindMatter) async throws -> FindReplyMatter {
+        let galaxyName = String(matter.namespace.split(separator: ".").first ?? Substring(matter.namespace))
+        guard let galaxyAddress = galaxyRegistry[galaxyName] else { return FindReplyMatter() }
         let client = try await galaxyClient(for: galaxyName, at: galaxyAddress)
-        let findMatter = try Matter.make(type: .find, body: body)
-        let galaxyReply = try await client.request(matter: findMatter)
-        let replyBody = try galaxyReply.decodeBody(FindReplyBody.self)
-        return try envelope.reply(body: replyBody)
+        let reply = try await client.base.request(.find(namespace: matter.namespace))
+        return try reply.decode(FindReplyMatter.self)
     }
 
-    /// Handle unregister from Planet (failover): forward to Galaxy.
-    private func handleUnregister(envelope: Matter) async throws -> Matter {
-        let body = try envelope.decodeBody(UnregisterBody.self)
-        let galaxyName = String(body.namespace.split(separator: ".").first ?? Substring(body.namespace))
-
-        guard let galaxyAddress = galaxyRegistry[galaxyName] else {
-            return try envelope.reply(body: UnregisterReplyBody())
-        }
-
+    private func handleUnregister(_ matter: UnregisterMatter) async throws -> UnregisterReplyMatter {
+        let galaxyName = String(matter.namespace.split(separator: ".").first ?? Substring(matter.namespace))
+        guard let galaxyAddress = galaxyRegistry[galaxyName] else { return UnregisterReplyMatter() }
         let client = try await galaxyClient(for: galaxyName, at: galaxyAddress)
-        let unregMatter = try Matter.make(type: .unregister, body: body)
-        let galaxyReply = try await client.request(matter: unregMatter)
-        let replyBody = try galaxyReply.decodeBody(UnregisterReplyBody.self)
-        return try envelope.reply(body: replyBody)
+        let reply = try await client.base.request(.unregister(namespace: matter.namespace, host: matter.host, port: matter.port))
+        return try reply.decode(UnregisterReplyMatter.self)
     }
 
-    /// Handle enqueue from Comet: forward to the Galaxy that owns the namespace.
-    private func handleEnqueue(envelope: Matter) async throws -> Matter {
-        let body = try envelope.decodeBody(EnqueueBody.self)
-        let galaxyName = String(body.namespace.split(separator: ".").first ?? Substring(body.namespace))
-
+    private func handleEnqueue(_ matter: EnqueueMatter) async throws -> RegisterReplyMatter {
+        let galaxyName = String(matter.namespace.split(separator: ".").first ?? Substring(matter.namespace))
         guard let galaxyAddress = galaxyRegistry[galaxyName] else {
-            return try envelope.reply(body: RegisterReplyBody(status: "no-galaxy"))
+            return RegisterReplyMatter(status: "no-galaxy")
         }
-
         let client = try await galaxyClient(for: galaxyName, at: galaxyAddress)
-        let enqueueMatter = try Matter.make(type: .enqueue, body: body)
-        let galaxyReply = try await client.request(matter: enqueueMatter)
-        let replyBody = try galaxyReply.decodeBody(RegisterReplyBody.self)
-        return try envelope.reply(body: replyBody)
+        let reply = try await client.base.request(.enqueue(namespace: matter.namespace, service: matter.service, method: matter.method, arguments: matter.arguments))
+        return try reply.decode(RegisterReplyMatter.self)
     }
 
-    /// Handle broker Galaxy discovery: return the Galaxy address for a given topic.
-    private func handleFindGalaxy(envelope: Matter) throws -> Matter {
-        let body = try envelope.decodeBody(FindGalaxyBody.self)
-        let galaxyName = String(body.topic.split(separator: ".").first ?? Substring(body.topic))
-
-        guard let address = galaxyRegistry[galaxyName] else {
-            return try envelope.reply(body: FindGalaxyReplyBody())
-        }
-        return try envelope.reply(body: FindGalaxyReplyBody(
-            galaxyHost: address.ipAddress,
-            galaxyPort: address.port
-        ))
+    private func handleFindGalaxy(_ matter: FindGalaxyMatter) -> FindGalaxyReplyMatter {
+        let galaxyName = String(matter.topic.split(separator: ".").first ?? Substring(matter.topic))
+        guard let address = galaxyRegistry[galaxyName] else { return FindGalaxyReplyMatter() }
+        return FindGalaxyReplyMatter(galaxyHost: address.ipAddress, galaxyPort: address.port)
     }
 
-    private func makeCloneReply(envelope: Matter) throws -> Matter {
-        let reply = CloneReplyBody(
-            identifier: identifier.uuidString,
-            name: name,
-            category: 0  // Ingress is infrastructure, not an Astral node
-        )
-        return try envelope.reply(body: reply)
+    private func cloneReply() -> CloneReplyMatter {
+        CloneReplyMatter(identifier: identifier.uuidString, name: name, category: 0)
     }
 }
 
@@ -148,13 +98,8 @@ extension StandardIngress {
 
 extension StandardIngress {
 
-    private func galaxyClient(
-        for name: String,
-        at address: SocketAddress
-    ) async throws -> GalaxyClient {
-        if let existing = galaxyClients[name], existing.address == address {
-            return existing
-        }
+    private func galaxyClient(for name: String, at address: SocketAddress) async throws -> GalaxyClient {
+        if let existing = galaxyClients[name], existing.address == address { return existing }
         let client = try await GalaxyClient.connect(to: address, tls: tls)
         galaxyClients[name] = client
         return client
